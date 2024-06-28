@@ -2,6 +2,17 @@ const mongoose = require('mongoose');
 
 const Schema = mongoose.Schema
 
+const typeVehicleSchema = new Schema({
+    name_type_vehicle: {
+        type: String,
+        required: true
+    },
+    price:{
+        type: Schema.Types.Decimal128,
+        required: true
+    }
+}, { _id: false });
+
 const transportationSchema = new Schema({
     nombre: {
         type: String,
@@ -15,17 +26,6 @@ const transportationSchema = new Schema({
     info: {
         type: String,
         required: false
-    }
-});
-
-const typeVehicleSchema = new Schema({
-    name_type_vehicle: {
-        type: String,
-        required: true
-    },
-    price:{
-        type: Schema.Types.Decimal128,
-        required: true
     }
 });
 

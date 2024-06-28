@@ -1,6 +1,7 @@
 const exs = require("express");
 const routes = require('./Rutas');
 const connectDB = require('./db/db.js');
+require('./schemas/Restaurant.schema.js')
 //const cors = require('cors')
 //const { use } = require("./Rutas/Lotes/Lotes.route");
 
@@ -19,7 +20,9 @@ connectDB();
 //apk.use(boomManejaError);
 
 
+ 
 apk.listen(puerto, () =>{
   console.log("puerto " + puerto + " activo")
 });
+
 

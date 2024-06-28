@@ -16,63 +16,63 @@ const TipoHabitacionSchema = new Schema({
         type: Number,
         required: true
     }
-});
+}, { _id: false });
 
 // Subcolección: InformacionGeneral
 const InformacionGeneralSchema = new Schema({
     check_in: {
         type: Date,
-        required: true
+        required: false
     },
     check_out: {
         type: Date,
-        required: true
+        required: false
     },
     breakfast: {
         type: Date,
-        required: true
+        required: false
     },
     box_breakfasts: {
         type: Date,
-        required: true
+        required: false
     },
     spa: {
         type: Boolean,
-        required: true
+        required: false
     },
     gym: {
         type: Boolean,
-        required: true
+        required: false
     },
     piscina: {
         type: Boolean,
-        required: true
+        required: false
     },
     agua: {
         type: Boolean,
-        required: true
+        required: false
     },
     dinner: {
         type: Boolean,
-        required: true
+        required: false
     },
     cuna: {
         type: Boolean,
-        required: true
+        required: false
     },
     bar: {
         type: Boolean,
-        required: true
+        required: false
     },
     hab_conectantes: {
         type: Boolean,
-        required: true
+        required: false
     },
     oxigeno: {
         type: Boolean,
-        required: true
+        required: false
     }
-});
+}, { _id: false });
 
 // Colección principal: Hoteles
 const HotelSchema = new Schema({

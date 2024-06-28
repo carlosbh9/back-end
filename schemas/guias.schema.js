@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const Schema = mongoose.Schema
 
-const guiasSchema = new Schema({
+const guideSchema = new Schema({
     name_guide:{
         type: String,
         required: true
@@ -20,4 +20,6 @@ const guiasSchema = new Schema({
         required: false
     }
 });
+
+module.exports = mongoose.model('Guides', guideSchema);
 //falta especificar consideraciones y importante info
