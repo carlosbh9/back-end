@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const Schema = mongoose.Schema
+const Schema = mongoose.Schema;
 
 const restaurantSchema = new Schema({
     name: {
@@ -20,10 +20,7 @@ const restaurantSchema = new Schema({
         required: true
     },
     special_dates: [specialDateSchema],
-    closing_date: {
-        type: String,
-        required: false
-    },
+    closing_date: [closingDateSchema],
     schedules: {
         type: String,
         required: false
@@ -53,7 +50,7 @@ const restaurantSchema = new Schema({
         required: false
     }
     
-})
+});
 
 
 const specialDateSchema = new Schema({
@@ -61,15 +58,21 @@ const specialDateSchema = new Schema({
         type: Date,
         required: false,
     },
-    price: {
-        type: Schema.Types.Decimal128,
-        required: false
-    },
-    porcentaje: {
+    price_add: {
         type: Number,
         required: false
     }
-}) 
+});
 
+const closingDateSchema = new Schema({
+    date: {
+        type: Date,
+        required: false
+    },
+    price_add:{
+        type: Number,
+        required: false
+    }
+});
 
 module.exports = mongoose.model('Restaurant', restaurantSchema);
