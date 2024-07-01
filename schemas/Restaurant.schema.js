@@ -31,7 +31,7 @@ const restaurantSchema = new Schema({
         required: true
     },
     price_pp:{
-        type: Schema.Types.Decimal128,
+        type: Number,
         required: true
     },
     child_rate: {
@@ -39,7 +39,7 @@ const restaurantSchema = new Schema({
         required: false
     },
     price_guide_pp: {
-        type: Schema.Types.Decimal128,
+        type: Number,
         required: true
     },
     special_dates: [specialDateSchema],
@@ -73,7 +73,7 @@ const restaurantSchema = new Schema({
         required: false
     }
     
-});
+},{timestamps: true});
 
 
 module.exports = mongoose.model('Restaurant', restaurantSchema);

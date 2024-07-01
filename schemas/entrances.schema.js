@@ -4,7 +4,7 @@ const Schema = mongoose.Schema
 
 const activitiesSchema = new Schema({
     description: {type: String, required: true},
-    price_pp: {type: Schema.Types.Decimal128, required: true},
+    price_pp: {type: Number, required: true},
     childRate: {
         pp: {
             type: Number,

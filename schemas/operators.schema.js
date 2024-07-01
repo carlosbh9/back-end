@@ -16,7 +16,7 @@ const price_ppSchema = new Schema({
     range_max: Number,
     type_vehicle: { type: String, enum: VehiculoEnum },
     price:{
-        type: Schema.Types.Decimal128
+        type: Number
     }
 }, { _id: false });
 
@@ -25,7 +25,6 @@ const ServicioSchema = new Schema({
     prices: [price_ppSchema],
     observaciones: {type: String, required: false}
 }, { _id: false });
-
 
 const OperatorSchema = new Schema({
     operador: {type: String, required: true},

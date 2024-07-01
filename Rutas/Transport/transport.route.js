@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const Train = require('../../schemas/train.schema');
+const Transport = require('../../schemas/transport.schema');
 
 // Crear un nuevo restaurante
 router.post('/', async (req, res) => {
     try {
-        const train = new Train(req.body);
-        await train.save();
-        res.status(201).send(train);
+        const transport = new Transport(req.body);
+        await transport.save();
+        res.status(201).send(transport);
     } catch (error) {
         res.status(400).send(error);
     }
@@ -16,8 +16,8 @@ router.post('/', async (req, res) => {
 // Obtener todos los restaurantes
 router.get('/', async (req, res) => {
     try {
-        const trains = await Train.find();
-        res.status(200).send(trains);
+        const transports = await Transport.find();
+        res.status(200).send(transports);
     } catch (error) {
         res.status(500).send(error);
     }
@@ -26,11 +26,11 @@ router.get('/', async (req, res) => {
 // Obtener un restaurante por ID
 router.get('/:id', async (req, res) => {
     try {
-        const train = await Train.findById(req.params.id);
-        if (!train) {
+        const transport = await Transport.findById(req.params.id);
+        if (!transport) {
             return res.status(404).send();
         }
-        res.status(200).send(train);
+        res.status(200).send(transport);
     } catch (error) {
         res.status(500).send(error);
     }
@@ -40,11 +40,11 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id', async (req, res) => {
     console.log(req.params)
     try {
-        const train = await Train.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-        if (!train) {
+        const transport = await Transport.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        if (!transport) {
             return res.status(404).send();
         }
-        res.status(200).send(train);
+        res.status(200).send(transport);
     } catch (error) {
         res.status(400).send(error);
     }
@@ -53,11 +53,11 @@ router.patch('/:id', async (req, res) => {
 // Eliminar un restaurante por ID
 router.delete('/:id', async (req, res) => {
     try {
-        const train = await Train.findByIdAndDelete(req.params.id);
-        if (!train) {
+        const transport = await Transport.findByIdAndDelete(req.params.id);
+        if (!transport) {
             return res.status(404).send();
         }
-        res.status(200).send(train);
+        res.status(200).send(transport);
     } catch (error) {
         res.status(500).send(error);
     }

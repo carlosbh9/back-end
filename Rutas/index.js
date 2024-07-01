@@ -1,12 +1,13 @@
 const exs = require("express");
 
-const HotelsRoute = require ("./Hotels/hotels.route")
-const TrainRoute = require ("./Train/train.route")
+//const HotelsRoutes = require ("./Hotel/hotel.route")
+//const TrainRoutes = require ("./Train/train.route")
+const restaurantRoutes = require ("./Restaurant/restaurant.route")
 
 function routes(app){
     const route = exs.Router();
     app.use("/api",route);
-    //route.use("/hotels",HotelsRoute);
+    app.use('/api/restaurants', restaurantRoutes);
     //route.use("/train",TrainRoute);
 }
 

@@ -8,7 +8,7 @@ const expeditionsSchema = new Schema({
         required: false
     },
     price_pp:{
-        type: String,
+        type: Number,
         required: true
     },
     remarks: {

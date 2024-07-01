@@ -12,7 +12,7 @@ const guideSchema = new Schema({
         required: false
     },
     price_guide:{
-        type: Schema.Types.Decimal128,
+        type: Number,
         required: false
     },
     observations: {
