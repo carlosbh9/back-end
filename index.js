@@ -1,7 +1,7 @@
 const exs = require("express");
-const routes = require('./Rutas');
+const routes = require('./src/Rutas');
 const connectDB = require('./db/db.js');
-require('./schemas/Restaurant.schema.js')
+//require('./src/models/Restaurant.schema.js')
 //const cors = require('cors')
 //const { use } = require("./Rutas/Lotes/Lotes.route");
 
@@ -10,9 +10,9 @@ const apk = exs();
 const puerto = 3000;
 apk.use(exs.json());
 //apk.use(cors());
-
-routes(apk);
 connectDB();
+routes(apk);
+
 
 
 //apk.use(mostrarError);
