@@ -5,95 +5,75 @@ const Schema = mongoose.Schema
 
 const TipoHabitacionSchema = new Schema({
     tipo_servicio: {
-        type: String,
-        required: true
+        type: String
     },
     tipo_habitacion: {
-        type: String, // Cambiar a otro tipo si necesario
-        required: true
+        type: String // Cambiar a otro tipo si necesario
     },
     price: {
-        type: Number,
-        required: true
+        type: Number
     }
 }, { _id: false });
 
 // Subcolección: InformacionGeneral
 const InformacionGeneralSchema = new Schema({
     check_in: {
-        type: Date,
-        required: false
+        type: Date
     },
     check_out: {
-        type: Date,
-        required: false
+        type: Date
     },
     breakfast: {
-        type: Date,
-        required: false
+        type: Date
     },
     box_breakfasts: {
-        type: Date,
-        required: false
+        type: Date
     },
     spa: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     gym: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     piscina: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     agua: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     dinner: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     cuna: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     bar: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     hab_conectantes: {
-        type: Boolean,
-        required: false
+        type: Boolean
     },
     oxigeno: {
-        type: Boolean,
-        required: false
+        type: Boolean
     }
 }, { _id: false });
 
 // Colección principal: Hoteles
 const HotelSchema = new Schema({
     nombre: {
-        type: String,
-        required: true
+        type: String
     },
     destinations: {
-        type: String,
-        required: true
+        type: String
     },
     servicio: {
-        type: String,
-        required: true
+        type: String
     },
     special_dates: {
-        type: [String],
-        required: true
+        type: [String]
     },
     tipo_habitaciones: [TipoHabitacionSchema],
     informacion_general: InformacionGeneralSchema
-});
+},{timestamps: true});
 
 module.exports = mongoose.model('Hotel', HotelSchema);

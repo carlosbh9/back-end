@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema
 
 const entranceSchema = new Schema({
-    description: {type: String, required: true},
-    price_pp: {type: Number, required: true},
+    description: {type: String},
+    price_pp: {type: Number},
     childRate: {
         pp: {
             type: Number,
@@ -16,5 +16,5 @@ const entranceSchema = new Schema({
         },
     },
     take_note: String
-})
+},{timestamps: true})
  module.exports = mongoose.model('Entrances',entranceSchema);

@@ -5,72 +5,57 @@ const Schema = mongoose.Schema;
 
 const specialDateSchema = new Schema({
     date: {
-        type: Date,
-        required: false,
+        type: Date
     },
     price_add: {
-        type: Number,
-        required: false
+        type: Number
     }
 }, { _id: false });
 
 const closingDateSchema = new Schema({
     date: {
-        type: Date,
-        required: false
+        type: Date
     },
     price_add:{
-        type: Number,
-        required: false
+        type: Number
     }
 }, { _id: false });
 
 const restaurantSchema = new Schema({
     name: {
-        type: String,
-        required: true
+        type: String
     },
     price_pp:{
-        type: Number,
-        required: true
+        type: Number
     },
     child_rate: {
-        type: [Number],
-        required: false
+        type: [Number]
     },
     price_guide_pp: {
-        type: Number,
-        required: true
+        type: Number
     },
     special_dates: [specialDateSchema],
     closing_date: [closingDateSchema],
     schedules: {
-        type: String,
-        required: false
+        type: String
     },
     location:{
-        type: String,
-        required: false
+        type: String
     },
     take_notes:{
-        type: String,
-        required: false
+        type: String
     },
     nearby_places: {
-        type: String,
-        required: false
+        type: String
     },
     politica_canc: {
-        type: String,
-        required: false
+        type: String
     },
     contac_phone: {
-        type: String,
-        reuired: false
+        type: String
     },
     observaciones: {
-        type: String,
-        required: false
+        type: String
     }
     
 },{timestamps: true});

@@ -4,23 +4,19 @@ const Schema = mongoose.Schema
 
 const priceSchema = new Schema({
     groupSize: {
-        type: Number,
-        required: true
+        type: Number
     },
     pricePerPerson: {
-        type: Number,
-        required: true
+        type: Number
     }
 }, { _id: false });
 
 const experienceSchema = new Schema({
     name: {
-        type: String,
-        required: true
+        type: String
     },
     category: {
-        type: String,
-        required: true
+        type: String
     },
     prices: [priceSchema],
     childRate: {
@@ -38,13 +34,11 @@ const experienceSchema = new Schema({
         }
     },
     guide_price: {
-        type: Number,
-        default: true
+        type: Number
     },
     approximateDuration: {
-        type: String,
-        required: true
+        type: String
     }
-});
+},{timestamps: true});
 
 module.exports = mongoose.model('Experience', experienceSchema);

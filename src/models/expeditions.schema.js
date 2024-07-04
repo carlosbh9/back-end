@@ -4,17 +4,14 @@ const Schema = mongoose.Schema
 
 const expeditionsSchema = new Schema({
     name:{
-        type: String,
-        required: false
+        type: String
     },
     price_pp:{
-        type: Number,
-        required: true
+        type: Number
     },
     remarks: {
-        type: String,
-        required: false
+        type: String
     }
-});
+},{timestamps: true});
 
 module.exports  = mongoose.model('Expeditions', expeditionsSchema);

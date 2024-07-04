@@ -4,22 +4,18 @@ const Schema = mongoose.Schema
 
 const guideSchema = new Schema({
     name_guide:{
-        type: String,
-        required: true
+        type: String
     },
     type_guide: {
-        type: String,
-        required: false
+        type: String
     },
     price_guide:{
-        type: Number,
-        required: false
+        type: Number
     },
     observations: {
-        type: String,
-        required: false
+        type: String
     }
-});
+},{timestamps: true});
 
 module.exports = mongoose.model('Guides', guideSchema);
 //falta especificar consideraciones y importante info

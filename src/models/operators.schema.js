@@ -21,17 +21,17 @@ const price_ppSchema = new Schema({
 }, { _id: false });
 
 const ServicioSchema = new Schema({
-    descripcion: {type: String, required: true},
+    descripcion: {type: String},
     prices: [price_ppSchema],
-    observaciones: {type: String, required: false}
+    observaciones: {type: String}
 }, { _id: false });
 
 const OperatorSchema = new Schema({
-    operador: {type: String, required: true},
-    ciudad: {type: String, required: true},
-    name_service: {type: String, required: true},
+    operador: {type: String},
+    ciudad: {type: String},
+    name_service: {type: String},
     servicios: [ServicioSchema],
-    observaciones: {type: String, required: false} 
-  });
+    observaciones: {type: String} 
+  },{timestamps: true});
 
   module.exports = mongoose.model('Operators',OperatorSchema)

@@ -4,23 +4,19 @@ const Schema = mongoose.Schema
 const priceSchema = new Schema({
     season: {
         type: String,
-        enum: ['High', 'Low'],
-        required: true
+        enum: ['High', 'Low','Regular']
     },
     adultPrice: {
-        type: Number,
-        required: true
+        type: Number
     },
     childPrice: {
-        type: Number,
-        required: true
+        type: Number
     }
 }, { _id: false });
 
 const serviceSchema = new Schema({
     serviceName: {
-        type: String,
-        required: true
+        type: String
     },
     prices: [priceSchema],
     observations: {
@@ -31,11 +27,10 @@ const serviceSchema = new Schema({
 
 const trainSchema = new Schema({
     company: {
-        type: String,
-        required: true
+        type: String
     },
     services: [serviceSchema]
-});
+},{timestamps: true});
 
 
 
