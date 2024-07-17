@@ -38,7 +38,11 @@ const experienceSchema = new Schema({
     },
     approximateDuration: {
         type: String
-    }
+    },
+    take_notes:{type:String},
+    politica_canc:{type: String},
+    contac_phone:{type:String}
+
 },{timestamps: true});
 
 module.exports = mongoose.model('Experience', experienceSchema);
