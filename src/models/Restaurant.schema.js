@@ -2,6 +2,14 @@ const mongoose = require('mongoose');
 
 const Schema = mongoose.Schema;
 
+const childRateSchema = new Schema({
+    price_pp: {
+        type: Number
+    },
+    upTo: {
+        type: Number
+    }
+}, { _id: false });
 
 const specialDateSchema = new Schema({
     date: {
@@ -28,9 +36,7 @@ const restaurantSchema = new Schema({
     price_pp:{
         type: Number
     },
-    child_rate: {
-        type: [Number]
-    },
+    child_rate: [childRateSchema],
     price_guide_pp: {
         type: Number
     },
