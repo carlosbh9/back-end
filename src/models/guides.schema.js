@@ -7,7 +7,8 @@ const guideSchema = new Schema({
         type: String
     },
     type_guide: {
-        type: String
+        type: String,
+        enum: ['Half day', 'Full day','Regular']
     },
     price_guide:{
         type: Number

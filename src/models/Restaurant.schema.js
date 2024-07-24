@@ -13,7 +13,7 @@ const childRateSchema = new Schema({
 
 const specialDateSchema = new Schema({
     date: {
-        type: Date
+        type: String
     },
     price_add: {
         type: Number
@@ -22,7 +22,7 @@ const specialDateSchema = new Schema({
 
 const closingDateSchema = new Schema({
     date: {
-        type: Date
+        type: String
     },
     price_add:{
         type: Number
@@ -66,6 +66,26 @@ const restaurantSchema = new Schema({
     
 },{timestamps: true});
 
+
+// // Middleware to convert dates to desired time zone when converting to JSON
+// restaurantSchema.set('toJSON', {
+//     transform: (doc, ret) => {
+//       const timeZone = 'America/Lima'; // Use the time zone for Peru
+//       if (ret.special_dates) {
+//         ret.special_dates = ret.special_dates.map(dateObj => ({
+//           ...dateObj,
+//           date: moment(dateObj.date).tz(timeZone).format()
+//         }));
+//       }
+//       if (ret.closing_date) {
+//         ret.closing_date = ret.closing_date.map(dateObj => ({
+//           ...dateObj,
+//           date: moment(dateObj.date).tz(timeZone).format()
+//         }));
+//       }
+//       return ret;
+//     }
+//   });
 
 module.exports = mongoose.model('Restaurant', restaurantSchema);
 
