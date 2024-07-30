@@ -99,44 +99,40 @@ router.get('/:operatorId/services', async (req, res) => {
 //actualizar un servicio
 router.patch('/:operatorId/services/:serviceId', async (req, res) => {
     const { operatorId, serviceId } = req.params;
-    const updatedService = req.body;
-
     try {
         const operator = await Operator.findById(operatorId);
         if (!operator) {
             return res.status(404).send({ message: 'Operator not found' });
         }
-        const service = operator.servicios.id(serviceId);
+        const service = operator.servicios.findById(serviceId);
         if (!service) {
             return res.status(404).send({ message: 'Service not found' });
         }
-        service.set(updatedService);
-        await operator.save();
         res.status(200).send(service);
     } catch (error) {
         res.status(400).send(error);
     }
 });
 
-//eliminar un servicio
 router.delete('/:operatorId/services/:serviceId', async (req, res) => {
     const { operatorId, serviceId } = req.params;
 
     try {
-        const operator = await Operator.findById(operatorId);
-        if (!operator) {
-            return res.status(404).send({ message: 'Operator not found' });
+        const result = await Operator.findByIdAndUpdate(
+            operatorId,
+            { $pull: { servicios: { _id: serviceId } } },
+            { new: true }
+        );
+
+        if (!result) {
+            return res.status(404).send({ message: 'Operator or Service not found' });
         }
-        const service = operator.servicios.id(serviceId);
-        if (!service) {
-            return res.status(404).send({ message: 'Service not found' });
-        }
-        service.remove();
-        await operator.save();
+
         res.status(200).send({ message: 'Service deleted' });
     } catch (error) {
-        res.status(400).send(error);
+        res.status(400).send({ message: 'Error deleting service', error });
     }
 });
+
 
 module.exports = router;
