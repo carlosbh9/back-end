@@ -96,23 +96,50 @@ router.get('/:operatorId/services', async (req, res) => {
     }
 });
 
-//actualizar un servicio
+// Actualizar un servicio existente de un operador
 router.patch('/:operatorId/services/:serviceId', async (req, res) => {
     const { operatorId, serviceId } = req.params;
+    const serviceUpdates = req.body;
+
     try {
         const operator = await Operator.findById(operatorId);
         if (!operator) {
             return res.status(404).send({ message: 'Operator not found' });
         }
-        const service = operator.servicios.findById(serviceId);
+
+        const service = operator.servicios.id(serviceId);
         if (!service) {
             return res.status(404).send({ message: 'Service not found' });
         }
+
+        // Actualizar el servicio con los nuevos datos
+        service.set(serviceUpdates);
+
+        // Guardar el operador actualizado
+        await operator.save();
+
         res.status(200).send(service);
     } catch (error) {
         res.status(400).send(error);
     }
 });
+// //actualizar un servicio
+// router.patch('/:operatorId/services/:serviceId', async (req, res) => {
+//     const { operatorId, serviceId } = req.params;
+//     try {
+//         const operator = await Operator.findById(operatorId);
+//         if (!operator) {
+//             return res.status(404).send({ message: 'Operator not found' });
+//         }
+//         const service = operator.servicios.findById(serviceId);
+//         if (!service) {
+//             return res.status(404).send({ message: 'Service not found' });
+//         }
+//         res.status(200).send(service);
+//     } catch (error) {
+//         res.status(400).send(error);
+//     }
+// });
 
 router.delete('/:operatorId/services/:serviceId', async (req, res) => {
     const { operatorId, serviceId } = req.params;
