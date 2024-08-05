@@ -29,7 +29,8 @@ const trainSchema = new Schema({
     company: {
         type: String
     },
-    services: [serviceSchema]
+    services: [serviceSchema],
+    observations: {type: String}
 },{timestamps: true});
 
 

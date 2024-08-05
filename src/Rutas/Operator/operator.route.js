@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Operator = require('../../../src/models/operators.schema');
 
-// Crear un nuevo restaurante
+// Crear un nuevo operador
 router.post('/', async (req, res) => {
     try {
         const operator = new Operator(req.body);
@@ -13,7 +13,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Obtener todos los restaurantes
+// Obtener todos los operadores
 router.get('/', async (req, res) => {
     try {
         const operators = await Operator.find();
@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Obtener un restaurante por ID
+// Obtener un operador por ID
 router.get('/:id', async (req, res) => {
     try {
         const operator = await Operator.findById(req.params.id);
@@ -50,7 +50,7 @@ router.patch('/:id', async (req, res) => {
     }
 });
 
-// Eliminar un restaurante por ID
+// Eliminar un operador por ID
 router.delete('/:id', async (req, res) => {
     try {
         const operator = await Operator.findByIdAndDelete(req.params.id);
@@ -123,23 +123,7 @@ router.patch('/:operatorId/services/:serviceId', async (req, res) => {
         res.status(400).send(error);
     }
 });
-// //actualizar un servicio
-// router.patch('/:operatorId/services/:serviceId', async (req, res) => {
-//     const { operatorId, serviceId } = req.params;
-//     try {
-//         const operator = await Operator.findById(operatorId);
-//         if (!operator) {
-//             return res.status(404).send({ message: 'Operator not found' });
-//         }
-//         const service = operator.servicios.findById(serviceId);
-//         if (!service) {
-//             return res.status(404).send({ message: 'Service not found' });
-//         }
-//         res.status(200).send(service);
-//     } catch (error) {
-//         res.status(400).send(error);
-//     }
-// });
+
 
 router.delete('/:operatorId/services/:serviceId', async (req, res) => {
     const { operatorId, serviceId } = req.params;
