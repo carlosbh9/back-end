@@ -73,7 +73,7 @@ router.post('/:trainId/services', async (req, res) => {
         if (!train) {
             return res.status(404).send({ message: 'train not found' });
         }
-        train.servicios.push(newService);
+        train.services.push(newService);
         await train.save();
         res.status(201).send(newService);
     } catch (error) {
@@ -86,7 +86,7 @@ router.get('/:trainId/services', async (req, res) => {
     const { trainId } = req.params;
 
     try {
-        const train = await Train.findById(trainId).select('servicios');
+        const train = await Train.findById(trainId).select('services');
         if (!train) {
             return res.status(404).send({ message: 'train not found' });
         }
@@ -131,7 +131,7 @@ router.delete('/:trainId/services/:serviceId', async (req, res) => {
     try {
         const result = await Train.findByIdAndUpdate(
             trainId,
-            { $pull: { servicios: { _id: serviceId } } },
+            { $pull: { services: { _id: serviceId } } },
             { new: true }
         );
 
