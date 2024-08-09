@@ -15,65 +15,35 @@ const TipoHabitacionSchema = new Schema({
     }
 }, { _id: false });
 
-// Subcolección: InformacionGeneral
-const InformacionGeneralSchema = new Schema({
-    check_in: {
-        type: Date
+const SpecialDatesSchema = new Schema({
+    date: {
+        type: String
     },
-    check_out: {
-        type: Date
-    },
-    breakfast: {
-        type: Date
-    },
-    box_breakfasts: {
-        type: Date
-    },
-    spa: {
-        type: Boolean
-    },
-    gym: {
-        type: Boolean
-    },
-    piscina: {
-        type: Boolean
-    },
-    agua: {
-        type: Boolean
-    },
-    dinner: {
-        type: Boolean
-    },
-    cuna: {
-        type: Boolean
-    },
-    bar: {
-        type: Boolean
-    },
-    hab_conectantes: {
-        type: Boolean
-    },
-    oxigeno: {
-        type: Boolean
+    price: {
+        type: Number
     }
 }, { _id: false });
 
+const ServicesSchema = new Schema({
+    name_service: {
+        type: String
+    },
+    tipo_habitaciones: [TipoHabitacionSchema],   
+    
+});
+
 // Colección principal: Hoteles
 const HotelSchema = new Schema({
-    nombre: {
+    name: {
         type: String
     },
-    destinations: {
+    location: {
         type: String
     },
-    servicio: {
-        type: String
-    },
-    special_dates: {
-        type: [String]
-    },
-    tipo_habitaciones: [TipoHabitacionSchema],
-    informacion_general: InformacionGeneralSchema
+    services: [ServicesSchema],
+    special_dates: [SpecialDatesSchema],
+    informacion_general: { type: Map,
+        of: Schema.Types.Mixed }
 },{timestamps: true});
 
 module.exports = mongoose.model('Hotel', HotelSchema);
