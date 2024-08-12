@@ -124,7 +124,7 @@ router.patch('/:operatorId/services/:serviceId', async (req, res) => {
     }
 });
 
-
+//eliminar un servicio de un operador
 router.delete('/:operatorId/services/:serviceId', async (req, res) => {
     const { operatorId, serviceId } = req.params;
 
