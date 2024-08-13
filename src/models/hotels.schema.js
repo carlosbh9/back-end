@@ -2,17 +2,23 @@ const mongoose = require('mongoose');
 
 const Schema = mongoose.Schema
 
+const PriceSchema = new Schema({
+    type: {
+        type: String // Puede ser 'SWB', 'DWB', 'TRP'
+    },
+    confidential: {
+        type: Number // Precio de CONFIDENTIAL
+    },
+    rack: {
+        type: Number // Precio de RACK PRICES
+    }
+}, { _id: false });
 
 const TipoHabitacionSchema = new Schema({
     tipo_servicio: {
         type: String
     },
-    tipo_habitacion: {
-        type: String // Cambiar a otro tipo si necesario
-    },
-    price: {
-        type: Number
-    }
+    prices: [PriceSchema]
 }, { _id: false });
 
 const SpecialDatesSchema = new Schema({
