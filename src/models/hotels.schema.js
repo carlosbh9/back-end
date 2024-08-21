@@ -14,12 +14,6 @@ const PriceSchema = new Schema({
     }
 }, { _id: false });
 
-const TipoHabitacionSchema = new Schema({
-    tipo_servicio: {
-        type: String
-    },
-    prices: [PriceSchema]
-}, { _id: false });
 
 const SpecialDatesSchema = new Schema({
     date: {
@@ -34,7 +28,7 @@ const ServicesSchema = new Schema({
     name_service: {
         type: String
     },
-    tipo_habitaciones: [TipoHabitacionSchema],   
+    roomPrices: [PriceSchema],   
     
 });
 
