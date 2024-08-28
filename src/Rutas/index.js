@@ -9,6 +9,7 @@ const operatorRoute = require("./Operator/operator.route")
 const restaurantRoutes = require ("./Restaurant/restaurant.route")
 const trainRoutes = require ("./Train/train.route")
 const transportRoute = require("./Transport/transport.route")
+const quoterRoute = require("./Quoter/quoter.route")
 
 
 function routes(app){
@@ -23,6 +24,7 @@ function routes(app){
     route.use('/restaurants', restaurantRoutes);
     route.use("/trains",trainRoutes);
     route.use("/transports",transportRoute);
+    route.use("/quoter",quoterRoute)
 }
 
 module.exports = routes;

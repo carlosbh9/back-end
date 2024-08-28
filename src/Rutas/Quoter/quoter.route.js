@@ -62,4 +62,21 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+//crear un nuevo item
+router.post('/:quoterId/quoterItems', async (req, res) => {
+    const {quoterId} = req.params;
+    const newItem = req.body;
+    try{
+        const item = await Quoter.findById(quoterId);
+        if(!item){
+            return res.status(404).send({message: 'Hotel not found'});
+        }
+        item.services.push(newItem);
+        await item.save();
+        res.status(201).send(newItem);
+    }catch(error){
+        res.status(400).send(error);
+    }
+});
+
 module.exports = router;

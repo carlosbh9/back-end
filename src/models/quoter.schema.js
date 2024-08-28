@@ -14,10 +14,11 @@ const ServicesSchema = Schema({
 
 const hotelSchema = new Schema({
     city: {type: String},
-    hotel:{type: String},
+    name_hotel:{type: String},
     type_hotel:{type:String},
     price:{type: Number},
-    accomodatios_category:{type: String}
+    accomodatios_category:{type: String},
+    notes:{type:String}
 })
 
 const flightsSchema = new Schema({
