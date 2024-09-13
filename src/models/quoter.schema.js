@@ -13,6 +13,7 @@ const ServicesSchema = Schema({
 })
 
 const hotelSchema = new Schema({
+    day: {type:String},
     city: {type: String},
     name_hotel:{type: String},
     type_hotel:{type:String},
