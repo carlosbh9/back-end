@@ -26,12 +26,19 @@ const ServicioSchema = new Schema({
     observaciones: {type: String}
 });
 
+const pricesRange = new Schema({
+    range_min: Number,
+    range_max: Number,
+    type: { type: String, enum: VehiculoEnum },
+}, { _id: false });
+
+
 const OperatorSchema = new Schema({
     operador: {type: String},
     ciudad: {type: String},
     name_service: {type: String},
     servicios: [ServicioSchema],
-    // observaciones: {type: String} 
+    pricesRange:[pricesRange]
   },{timestamps: true});
 
   module.exports = mongoose.model('Operators',OperatorSchema)
