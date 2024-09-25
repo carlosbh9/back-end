@@ -17,7 +17,7 @@ const hotelSchema = new Schema({
     city: {type: String},
     name_hotel:{type: String},
     type_hotel:{type:String},
-    price:{type: Number},
+    price:[Number],
     accomodatios_category:{type: String},
     notes:{type:String}
 })
@@ -39,7 +39,7 @@ const quoterSchema = new Schema({
     },
     acomodations: {type: String},
     totalNights: {type:String},
-    number_paxs:{type: Number},
+    number_paxs:[Number],
     trvale_agent:{type:String},
     exchange_rate:{type:String},
     services:[ServicesSchema],
