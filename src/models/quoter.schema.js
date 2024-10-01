@@ -7,8 +7,8 @@ const ServicesSchema = Schema({
     date: {type: String},
     city: {type: String},
     name_service: {type: String},
-    price_pp:{type: Number},
-    price:{type: Number},
+    price_base:{type: Number},
+    prices:[Number],   
     notes: {type: String}
 })
 
@@ -24,7 +24,11 @@ const hotelSchema = new Schema({
     day: {type:String},
     date:{type: String},
     city: {type: String},
-    hotelservices:[hotelservices]
+    name_hotel:{type: String},
+    price_base:{type: Number},
+    prices:[Number],
+    accomodatios_category:{type: String},
+    notes:{type:String}
 })
 
 const flightsSchema = new Schema({
