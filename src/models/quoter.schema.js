@@ -8,7 +8,11 @@ const ServicesSchema = Schema({
     city: {type: String},
     name_service: {type: String},
     price_base:{type: Number},
+<<<<<<< HEAD
     prices:[Number],
+=======
+    prices:[Number],   
+>>>>>>> 3fe22e04928bd725aa013326c964712fb5748052
     notes: {type: String}
 }, { _id: false })
 
@@ -22,6 +26,8 @@ const hotelSchema = new Schema({
     accomodatios_category:{type:String},
     notes: {type: String}
 }, { _id: false })
+ 
+
 
 const flightsSchema = new Schema({
     date: {type: String},
