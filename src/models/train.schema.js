@@ -23,7 +23,7 @@ const serviceSchema = new Schema({
         type: String,
         default: ''
     }
-} );
+}, );
 
 const trainSchema = new Schema({
     company: {

@@ -7,25 +7,21 @@ const ServicesSchema = Schema({
     date: {type: String},
     city: {type: String},
     name_service: {type: String},
-    price_pp:{type: Number},
-    price:{type: Number},
+    price_base:{type: Number},
+    prices:[Number],
     notes: {type: String}
-})
-
-const hotelservices = new Schema({
-    name_hotel:{type: String},
-    type_hotel:{type:String},
-    price:[Number],
-    accomodatios_category:{type: String},
-    notes:{type:String}
-}) 
+}, { _id: false })
 
 const hotelSchema = new Schema({
-    day: {type:String},
+    day: {type:Number},
     date:{type: String},
     city: {type: String},
-    hotelservices:[hotelservices]
-})
+    name_hotel:{type: String},
+    price_base:{type: Number},
+    prices:[Number],
+    accomodatios_category:{type:String},
+    notes: {type: String}
+}, { _id: false })
 
 const flightsSchema = new Schema({
     date: {type: String},
@@ -33,7 +29,7 @@ const flightsSchema = new Schema({
     price_conf: {type: Number},
     total_price:{type: Number},
     notes: {type:String}
-})
+}, { _id: false })
 
 const quoterSchema = new Schema({
     guest: {type: String},
@@ -42,10 +38,10 @@ const quoterSchema = new Schema({
         start:String,
         end: String
     },
-    acomodations: {type: String},
+    accomodations: {type: String},
     totalNights: {type:String},
     number_paxs:[Number],
-    trvale_agent:{type:String},
+    travel_agent:{type:String},
     exchange_rate:{type:String},
     services:[ServicesSchema],
     hotels:[hotelSchema],
