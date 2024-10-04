@@ -16,7 +16,7 @@ const specialDateSchema = new Schema({
         type: String
     },
     price_add: {
-        type: Number
+        type: String
     }
 }, { _id: false });
 
@@ -25,7 +25,7 @@ const closingDateSchema = new Schema({
         type: String
     },
     price_add:{
-        type: Number
+        type: String
     }
 }, { _id: false });
 
