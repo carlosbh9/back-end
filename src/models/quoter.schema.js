@@ -9,6 +9,7 @@ const ServicesSchema = Schema({
     name_service: {type: String},
     price_base:{type: Number},
     prices:[Number],   
+    total_prices:[Number],
     notes: {type: String}
 }, { _id: false })
 
@@ -19,6 +20,7 @@ const hotelSchema = new Schema({
     name_hotel:{type: String},
     price_base:{type: Number},
     prices:[Number],
+    total_prices:[Number],
     accomodatios_category:{type:String},
     notes: {type: String}
 }, { _id: false })
@@ -29,9 +31,23 @@ const flightsSchema = new Schema({
     date: {type: String},
     route: {type:String},
     price_conf: {type: Number},
-    total_price:{type: Number},
+    prices:[Number],
+    total_prices:[Number],
     notes: {type:String}
 }, { _id: false })
+
+const totalPrices = new Schema({
+    total_hoteles:[Number],
+    total_services:[Number],
+    total_ext_operator:[Number],
+    total_ext_cruises:[Number],
+    total_flights:[Number],
+    subtotal: [Number],
+    cost_transfers:[Number],
+    final_cost:[Number],
+    price_pp:[Number]
+
+},{_id:false})
 
 const quoterSchema = new Schema({
     guest: {type: String},
@@ -47,7 +63,8 @@ const quoterSchema = new Schema({
     exchange_rate:{type:String},
     services:[ServicesSchema],
     hotels:[hotelSchema],
-    flights:[flightsSchema]
+    flights:[flightsSchema],
+    total_prices:[totalPrices]
 
 },{timestamps: true})
  module.exports = mongoose.model('Quoter',quoterSchema);
