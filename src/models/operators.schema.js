@@ -38,7 +38,8 @@ const OperatorSchema = new Schema({
     ciudad: {type: String},
     name_service: {type: String},
     servicios: [ServicioSchema],
-    pricesRange:[pricesRange]
+    pricesRange:[pricesRange],
+    year: {type:String}
   },{timestamps: true});
 
   module.exports = mongoose.model('Operators',OperatorSchema)

@@ -21,7 +21,8 @@ const transportationSchema = new Schema({
     type_vehicle:[typeVehicleSchema],
     info: {
         type: String
-    }
+    },
+    year: {type:String}
 },{timestamps: true});
 
 module.exports = mongoose.model('Transportation',transportationSchema);

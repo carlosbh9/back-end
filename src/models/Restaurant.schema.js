@@ -62,7 +62,8 @@ const restaurantSchema = new Schema({
     },
     observaciones: {
         type: String
-    }
+    },
+    year: {type:String}
     
 },{timestamps: true});
 

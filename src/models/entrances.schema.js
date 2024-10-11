@@ -15,6 +15,7 @@ const entranceSchema = new Schema({
             default: null
         },
     },
-    take_note: String
+    take_note: {type: String},
+    year: {type:String}
 },{timestamps: true})
  module.exports = mongoose.model('Entrances',entranceSchema);

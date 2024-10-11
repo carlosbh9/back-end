@@ -15,7 +15,8 @@ const guideSchema = new Schema({
     },
     observations: {
         type: String
-    }
+    },
+    year: {type:String}
 },{timestamps: true});
 
 module.exports = mongoose.model('Guides', guideSchema);

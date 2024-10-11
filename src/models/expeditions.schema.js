@@ -11,7 +11,8 @@ const expeditionsSchema = new Schema({
     },
     remarks: {
         type: String
-    }
+    },
+    year: {type:String}
 },{timestamps: true});
 
 module.exports  = mongoose.model('Expeditions', expeditionsSchema);

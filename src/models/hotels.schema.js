@@ -43,7 +43,8 @@ const HotelSchema = new Schema({
     services: [ServicesSchema],
     special_dates: [SpecialDatesSchema],
     informacion_general: { type: Map,
-        of: Schema.Types.Mixed }
+        of: Schema.Types.Mixed },
+    year: {type:String}    
 },{timestamps: true});
 
 module.exports = mongoose.model('Hotel', HotelSchema);

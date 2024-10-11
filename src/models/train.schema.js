@@ -11,6 +11,9 @@ const priceSchema = new Schema({
     },
     childPrice: {
         type: Number
+    },
+    guidePrice: {
+        type: Number
     }
 }, { _id: false });
 
@@ -30,7 +33,8 @@ const trainSchema = new Schema({
         type: String
     },
     services: [serviceSchema],
-    observations: {type: String}
+    observations: {type: String},
+    year: {type:String}
 },{timestamps: true});
 
 
