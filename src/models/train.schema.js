@@ -21,7 +21,21 @@ const serviceSchema = new Schema({
     serviceName: {
         type: String
     },
-    prices: [priceSchema],
+    prices: { 
+        season: {
+            type: String,
+            enum: ['High', 'Low','Regular']
+        },
+        adultPrice: {
+            type: Number
+        },
+        childPrice: {
+            type: Number
+        },
+        guidePrice: {
+            type: Number
+        }
+    },
     observations: {
         type: String,
         default: ''

@@ -48,6 +48,13 @@ const totalPrices = new Schema({
     price_pp:[Number]
 
 },{_id:false})
+const OperatorsSchema = Schema({
+    country: {type: String},
+    name_operator: {type: String},
+    city: {type: String},
+    prices:[Number],   
+    notes: {type: String}
+}, { _id: false })
 
 const quoterSchema = new Schema({
     guest: {type: String},
@@ -64,7 +71,13 @@ const quoterSchema = new Schema({
     services:[ServicesSchema],
     hotels:[hotelSchema],
     flights:[flightsSchema],
-    total_prices:[totalPrices]
+    operators: [OperatorsSchema],
+    total_prices:totalPrices
+    // services2:[{
+    //     service_id: { type: Schema.Types.ObjectId, refPath: 'services2.type_service' },  // Referencia dinámica
+    //         type_service: { type: String, required: true, enum: ['Entrances', 'Expeditions'] },  // Tipos de servicio
+    //         price: { type: Number }  // Precio en el momento de la cotización
+    // }]
 
 },{timestamps: true})
  module.exports = mongoose.model('Quoter',quoterSchema);
