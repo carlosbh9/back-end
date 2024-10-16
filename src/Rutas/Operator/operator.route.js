@@ -81,6 +81,33 @@ router.post('/:operatorId/services', async (req, res) => {
     }
 });
 
+
+// Obtener un servicio específico de un operador
+router.get('/:operatorId/:serviceId', async (req, res) => {
+    const { operatorId, serviceId } = req.params;
+
+    try {
+        // Buscar el operador y obtener sus servicios
+        const operator = await Operator.findById(operatorId);
+
+        if (!operator) {
+            return res.status(404).send({ message: 'Operator not found' });
+        }
+
+        // Buscar el servicio específico en el array de servicios
+        const service = operator.servicios.id(serviceId);
+
+        if (!service) {
+            return res.status(404).send({ message: 'Service not found' });
+        }
+
+        // Enviar el servicio encontrado
+        res.status(200).send(service);
+    } catch (error) {
+        res.status(400).send({ message: 'Error retrieving service', error });
+    }
+});
+
 //obtener los servicios
 router.get('/:operatorId/services', async (req, res) => {
     const { operatorId } = req.params;

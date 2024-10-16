@@ -10,7 +10,7 @@ const restaurantRoutes = require ("./Restaurant/restaurant.route")
 const trainRoutes = require ("./Train/train.route")
 const transportRoute = require("./Transport/transport.route")
 const quoterRoute = require("./Quoter/quoter.route")
-
+const masterQuoter = require("./masterQuoter/master_quoter.route")
 
 function routes(app){
     const route = exs.Router();
@@ -24,7 +24,8 @@ function routes(app){
     route.use('/restaurants', restaurantRoutes);
     route.use("/trains",trainRoutes);
     route.use("/transports",transportRoute);
-    route.use("/quoter",quoterRoute)
+    route.use("/quoter",quoterRoute);
+    route.use("/master",masterQuoter);
 }
 
 module.exports = routes;

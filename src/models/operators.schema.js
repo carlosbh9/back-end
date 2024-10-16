@@ -24,7 +24,7 @@ const ServicioSchema = new Schema({
     descripcion: {type: String},
     prices: [price_ppSchema],
     observaciones: {type: String}
-});
+},{_id: true});
 
 const pricesRange = new Schema({
     range_min: Number,
