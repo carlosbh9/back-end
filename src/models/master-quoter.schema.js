@@ -4,7 +4,9 @@ const Schema = mongoose.Schema
 
 
 const masterQuoterSchema = new Schema({
-    name: { type: String, required: true },  // Nombre de la opción programada
+    name: { type: String, required: true },// Nombre de la opción programada
+    days: {type: Number} ,
+    destinations: {type:String} ,
     services: [
         {
             name_service:{type: String },

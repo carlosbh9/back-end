@@ -83,7 +83,7 @@ router.post('/:operatorId/services', async (req, res) => {
 
 
 // Obtener un servicio específico de un operador
-router.get('/:operatorId/:serviceId', async (req, res) => {
+router.get('/:operatorId/services/:serviceId', async (req, res) => {
     const { operatorId, serviceId } = req.params;
 
     try {
@@ -98,7 +98,7 @@ router.get('/:operatorId/:serviceId', async (req, res) => {
         const service = operator.servicios.id(serviceId);
 
         if (!service) {
-            return res.status(404).send({ message: 'Service not found' });
+            return res.status(404).send({ message: 'Service jj not found' });
         }
 
         // Enviar el servicio encontrado
@@ -122,6 +122,7 @@ router.get('/:operatorId/services', async (req, res) => {
         res.status(400).send(error);
     }
 });
+
 
 // Actualizar un servicio existente de un operador
 router.patch('/:operatorId/services/:serviceId', async (req, res) => {
