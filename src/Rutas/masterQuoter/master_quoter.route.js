@@ -24,7 +24,13 @@ router.get('/:id', async (req, res) => {
         }
 
         const servicesDetails = [];
-        for (const service of option.services) {
+        const dayServicesDetails = [];
+       // const dayName = [];
+        for (const day of option.day) {
+            
+            for (const service of day.services){
+
+           
             if (service.service_type === 'entrance') {
                 const entrance = await Entrance.findById(service.service_id);
                 if (entrance) {
@@ -88,11 +94,20 @@ router.get('/:id', async (req, res) => {
                     });
                 }
             }
+            }
+            dayServicesDetails.push({
+                city: day.city,
+                name_services: day.name_services,
+                services: servicesDetails
+            });
         }
 
         res.json({
             name: option.name,
-            services: servicesDetails
+           // days: option.days,
+       //     name_services: option.name_services,
+            destinations: option.destinations,
+            day: dayServicesDetails
         });
     } catch (error) {
         console.error(error);
@@ -103,21 +118,17 @@ router.get('/:id', async (req, res) => {
 // POST: Crear una nueva Master Quoter
 router.post('/', async (req, res) => {
     try {
-        // const { name, services } = req.body;
-        const { masterQuoter } = req.body;
+        //const { name, days, day } = req.body; // Extraemos los campos necesarios
 
         // Validación simple
-        // if (!name || !services || !Array.isArray(services)) {
+        // if (!name || !days || !Array.isArray(day)) {
         //     return res.status(400).json({ message: 'Faltan campos obligatorios o el formato es incorrecto' });
         // }
 
-        // const newMasterQuoter = new masterQuoter({
-        //     name,
-        //     services
-        // });
-        const newMasterQuoter = new masterQuoter({
-            masterQuoter
-        });
+        // Crear un nuevo objeto MasterQuoter
+        const newMasterQuoter = new masterQuoter(req.body);
+
+        // Guardar en la base de datos
         await newMasterQuoter.save();
 
         res.status(201).json({
@@ -129,7 +140,6 @@ router.post('/', async (req, res) => {
         res.status(500).json({ message: 'Error al crear la Master Quoter' });
     }
 });
-
 // Ruta para eliminar una Master Quoter
 router.delete('/:id', async (req, res) => {
     try {
@@ -146,7 +156,7 @@ router.delete('/:id', async (req, res) => {
 // Ruta para obtener todas las Master Quoter con solo las referencias a los servicios (_id)
 router.get('/', async (req, res) => {
     try {
-        const options = await masterQuoter.find().select('_id name services');
+        const options = await masterQuoter.find().select('_id name day ');
         res.status(200).json(options);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los Master Quoter', error });

@@ -12,7 +12,8 @@ const servicesShema = new Schema({
 },{_id: false})
 
 const daysSchema = new Schema({
-    
+    city: {type: String },
+    name_services: {type:String},
     services: [servicesShema]
 }) 
 
