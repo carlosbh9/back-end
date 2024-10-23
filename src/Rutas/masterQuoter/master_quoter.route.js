@@ -103,18 +103,21 @@ router.get('/:id', async (req, res) => {
 // POST: Crear una nueva Master Quoter
 router.post('/', async (req, res) => {
     try {
-        const { name, services } = req.body;
+        // const { name, services } = req.body;
+        const { masterQuoter } = req.body;
 
         // Validación simple
-        if (!name || !services || !Array.isArray(services)) {
-            return res.status(400).json({ message: 'Faltan campos obligatorios o el formato es incorrecto' });
-        }
+        // if (!name || !services || !Array.isArray(services)) {
+        //     return res.status(400).json({ message: 'Faltan campos obligatorios o el formato es incorrecto' });
+        // }
 
+        // const newMasterQuoter = new masterQuoter({
+        //     name,
+        //     services
+        // });
         const newMasterQuoter = new masterQuoter({
-            name,
-            services
+            masterQuoter
         });
-
         await newMasterQuoter.save();
 
         res.status(201).json({

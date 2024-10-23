@@ -9,7 +9,7 @@ const servicesShema = new Schema({
     service_type: { type: String, enum: ['entrance', 'restaurant', 'operator','expeditions','experience','guides','hotel','train','transport'], required: true },  // Tipo del servicio
     operator_service_id: { type: Schema.Types.ObjectId, required: false } , // ID del servicio específico dentro de un operador (si es 'operator')
     train_service_id: {type: Schema.Types.ObjectId, required: false },
-})
+},{_id: false})
 
 const daysSchema = new Schema({
     
