@@ -118,12 +118,6 @@ router.get('/:id', async (req, res) => {
 // POST: Crear una nueva Master Quoter
 router.post('/', async (req, res) => {
     try {
-        //const { name, days, day } = req.body; // Extraemos los campos necesarios
-
-        // Validación simple
-        // if (!name || !days || !Array.isArray(day)) {
-        //     return res.status(400).json({ message: 'Faltan campos obligatorios o el formato es incorrecto' });
-        // }
 
         // Crear un nuevo objeto MasterQuoter
         const newMasterQuoter = new masterQuoter(req.body);

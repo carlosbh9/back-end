@@ -11,6 +11,7 @@ const trainRoutes = require ("./Train/train.route")
 const transportRoute = require("./Transport/transport.route")
 const quoterRoute = require("./Quoter/quoter.route")
 const masterQuoter = require("./masterQuoter/master_quoter.route")
+const servicesController = require('./servicesController/servicesController');
 
 function routes(app){
     const route = exs.Router();
@@ -26,6 +27,7 @@ function routes(app){
     route.use("/transports",transportRoute);
     route.use("/quoter",quoterRoute);
     route.use("/master",masterQuoter);
+    route.post('/get-service-prices', servicesController.getServicePrices);
 }
 
 module.exports = routes;
