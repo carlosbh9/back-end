@@ -29,7 +29,7 @@ const experienceSchema = new Schema({
             default: null
         },
         minimumAge: {
-            type: String,
+            type: Number,
             default: null
         }
     },
