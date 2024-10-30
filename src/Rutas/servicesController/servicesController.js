@@ -8,7 +8,7 @@ const RestaurantService = require('../../models/Restaurant.schema')
 
 exports.getServicePrices = async (req, res) => {
     try {
-      const { services ,children_ages ,number_paxs , date} = req.body; // array de servicios seleccionados
+      const { services ,children_ages ,number_paxs , date,city} = req.body; // array de servicios seleccionados
       const results = [];
   
       for (const service of services) {
@@ -25,8 +25,11 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateEntrancePrice(serviceData,children_ages,number_paxs);
               results.push({
-                name: serviceData.description,
-                price: calculatedPrice,
+                city:city,
+                date:date,
+                name_service: serviceData.description,
+                price_base: calculatedPrice[0],
+                prices: calculatedPrice,
               });
             }
             break;
@@ -36,8 +39,11 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateExpeditionPrice(serviceData,number_paxs);
               results.push({
-                name: serviceData.name,
-                price: calculatedPrice,
+                city:city,
+                date:date,
+                name_service: serviceData.name,
+                price_base: calculatedPrice[0],
+                prices: calculatedPrice,
               });
             }
 
@@ -48,8 +54,11 @@ exports.getServicePrices = async (req, res) => {
               if (serviceData) {
                 const calculatedPrice = calculateExperiencePrice(serviceData,number_paxs);
                 results.push({
-                  name: serviceData.name,
-                  price: calculatedPrice,
+                  city:city,
+                  date:date,
+                  name_service: serviceData.name,
+                  price_base: calculatedPrice[0],
+                  prices: calculatedPrice,
                 });
               }
   
@@ -59,8 +68,11 @@ exports.getServicePrices = async (req, res) => {
               if (serviceData) {
                 const calculatedPrice = calculateGourmetPrice(serviceData,children_ages,number_paxs);
                 results.push({
-                  name: serviceData.activitie,
-                  price: calculatedPrice,
+                  city:city,
+                  date:date,
+                  name_service: serviceData.activitie,
+                  price_base: calculatedPrice[0],
+                  prices: calculatedPrice,
                 });
               }
           break; 
@@ -70,8 +82,11 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateGuidePrice(serviceData,children_ages,number_paxs,date);
               results.push({
-                name: serviceData.name_guide,
-                price: calculatedPrice,
+                city:city,
+                date:date,
+                name_service: serviceData.name_guide,
+                price_base: calculatedPrice[0],
+                prices: calculatedPrice,
               });
             }
             
@@ -81,27 +96,30 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateRestaurantPrice(serviceData,children_ages,number_paxs,date);
               results.push({
-                name: serviceData.name_guide,
-                price: calculatedPrice,
+                city:city,
+                date:date,
+                name_service: serviceData.name_guide,
+                price_base: calculatedPrice[0],
+                prices: calculatedPrice,
               });
             }
             
           break; 
-          case 'operator':
-            // Consulta en la colección OperatorService
-            serviceData = await OperatorService.findById(service_id);
-            if (serviceData) {
-              const calculatedPrice = calculateOperatorPrice(serviceData);
-              results.push({
-                service_id,
-                name: serviceData.name,
-                price: calculatedPrice,
-                date: serviceData.date,
-                day: serviceData.day,
-                notes: serviceData.notes || 'N/A',
-              });
-            }
-            break;
+          // case 'operator':
+          //   // Consulta en la colección OperatorService
+          //   serviceData = await OperatorService.findById(service_id);
+          //   if (serviceData) {
+          //     const calculatedPrice = calculateOperatorPrice(serviceData);
+          //     results.push({
+          //       service_id,
+          //       name: serviceData.name,
+          //       price: calculatedPrice,
+          //       date: serviceData.date,
+          //       day: serviceData.day,
+          //       notes: serviceData.notes || 'N/A',
+          //     });
+          //   }
+          //   break;
 
           // Agrega más casos según los `service_type` y sus respectivas colecciones
           default:
