@@ -26,7 +26,7 @@ exports.getServicePrices = async (req, res) => {
               const calculatedPrice = calculateEntrancePrice(serviceData,children_ages,number_paxs);
               results.push({
                 city:city,
-                date:date,
+            
                 name_service: serviceData.description,
                 price_base: calculatedPrice[0],
                 prices: calculatedPrice,
@@ -40,7 +40,7 @@ exports.getServicePrices = async (req, res) => {
               const calculatedPrice = calculateExpeditionPrice(serviceData,number_paxs);
               results.push({
                 city:city,
-                date:date,
+           
                 name_service: serviceData.name,
                 price_base: calculatedPrice[0],
                 prices: calculatedPrice,
@@ -55,7 +55,7 @@ exports.getServicePrices = async (req, res) => {
                 const calculatedPrice = calculateExperiencePrice(serviceData,number_paxs);
                 results.push({
                   city:city,
-                  date:date,
+             
                   name_service: serviceData.name,
                   price_base: calculatedPrice[0],
                   prices: calculatedPrice,
@@ -69,7 +69,7 @@ exports.getServicePrices = async (req, res) => {
                 const calculatedPrice = calculateGourmetPrice(serviceData,children_ages,number_paxs);
                 results.push({
                   city:city,
-                  date:date,
+               
                   name_service: serviceData.activitie,
                   price_base: calculatedPrice[0],
                   prices: calculatedPrice,
@@ -83,7 +83,7 @@ exports.getServicePrices = async (req, res) => {
               const calculatedPrice = calculateGuidePrice(serviceData,children_ages,number_paxs,date);
               results.push({
                 city:city,
-                date:date,
+           
                 name_service: serviceData.name_guide,
                 price_base: calculatedPrice[0],
                 prices: calculatedPrice,
@@ -97,8 +97,8 @@ exports.getServicePrices = async (req, res) => {
               const calculatedPrice = calculateRestaurantPrice(serviceData,children_ages,number_paxs,date);
               results.push({
                 city:city,
-                date:date,
-                name_service: serviceData.name_guide,
+               
+                name_service: serviceData.name,
                 price_base: calculatedPrice[0],
                 prices: calculatedPrice,
               });
@@ -127,7 +127,7 @@ exports.getServicePrices = async (req, res) => {
         }
       }
   
-      res.status(200).json(results);
+      res.status(200).json({services:results,date:date});
     } catch (error) {
       console.error('Error obteniendo precios de servicios:', error);
       res.status(500).json({ message: 'Error al obtener precios de servicios' });
@@ -262,5 +262,30 @@ exports.getServicePrices = async (req, res) => {
 
     function calculateRestaurantPrice(serviceData,children_ages,number_paxs,date) {
 
-      
+        // Precio general y posibles precios especiales
+    const generalPrice = serviceData.price_pp || 0;
+    let finalPrice = generalPrice;
+
+    // Revisar si la fecha coincide con una fecha especial
+    serviceData.special_dates.forEach(s => {
+        if(s.date=== date){
+          finalPrice=s.price_add;
+        }
+    })
+    // const specialDate = serviceData.special_dates.find(s => s.date === date);
+    // if (specialDate) {
+    //     finalPrice = specialDate.price_add;
+    // }
+
+    // Verificar precios de niño según la edad
+    children_ages.forEach(age => {
+        serviceData.child_rate.forEach(childRate => {
+            if (childRate.upTo !== null && age <= childRate.upTo) {
+                finalPrice = Math.min(finalPrice, childRate.price_pp); // Toma el precio de niño si es menor
+            }
+        });
+    });
+
+    // Calcular el precio total multiplicado por cada número en number_paxs usando map
+    return number_paxs.map(paxCount => finalPrice * paxCount);
     }

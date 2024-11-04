@@ -2,16 +2,31 @@ const mongoose = require('mongoose');
 
 const Schema = mongoose.Schema
 
-const ServicesSchema = Schema({
-    day: {type: Number},
-    date: {type: String},
-    city: {type: String},
-    name_service: {type: String},
-    price_base:{type: Number},
-    prices:[Number],   
-    total_prices:[Number],
-    notes: {type: String}
-}, { _id: false })
+// const ServicesSchema = Schema({
+//     day: {type: Number},
+//     date: {type: String},
+//     city: {type: String},
+//     name_service: {type: String},
+//     price_base:{type: Number},
+//     prices:[Number],   
+//     total_prices:[Number],
+//     notes: {type: String}
+// }, { _id: false })
+
+const DaySchema= new Schema({
+    
+    city: { type: String},
+    name_service: { type: String },
+    price_base: { type: Number}, // Precio base del servicio
+    prices: [Number], // Array de precios adicionales
+    notes: { type: String }
+});
+
+const ServicesSchema = new Schema({
+    day: { type: Number, required: true }, // Número de día (1, 2, 3, etc.)
+    date: { type: String},
+    services: [DaySchema] // Array de servicios para cada día
+});
 
 const hotelSchema = new Schema({
     day: {type:Number},
