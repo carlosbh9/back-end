@@ -103,8 +103,6 @@ exports.getServicePrices = async (req, res) => {
                 prices: calculatedPrice,
               });
             }
-            
-          break; 
           // case 'operator':
           //   // Consulta en la colección OperatorService
           //   serviceData = await OperatorService.findById(service_id);

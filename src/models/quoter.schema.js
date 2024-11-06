@@ -52,6 +52,10 @@ const flightsSchema = new Schema({
 }, { _id: false })
 
 const totalPrices = new Schema({
+    total_cost:[Number],
+    external_utility:[Number],
+    cost_external_taxes:[Number],
+    total_cost_external:[Number],
     total_hoteles:[Number],
     total_services:[Number],
     total_ext_operator:[Number],

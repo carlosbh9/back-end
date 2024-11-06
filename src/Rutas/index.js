@@ -13,6 +13,7 @@ const quoterRoute = require("./Quoter/quoter.route")
 const masterQuoter = require("./masterQuoter/master_quoter.route")
 const limaGourmet = require('./Gourmet/limaGourmet.route')
 const servicesController = require('./servicesController/servicesController');
+const hotelController = require('./servicesController/hotelController');
 
 function routes(app){
     const route = exs.Router();
@@ -29,6 +30,7 @@ function routes(app){
     route.use("/quoter",quoterRoute);
     route.use("/master",masterQuoter);
     route.post('/get-service-prices', servicesController.getServicePrices);
+    route.post("/get-hotel-prices", hotelController.getServicePrices)
     route.use("/limagourmet",limaGourmet);
 
 }
