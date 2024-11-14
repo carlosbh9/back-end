@@ -33,7 +33,7 @@ const hotelSchema = new Schema({
     date:{type: String},
     city: {type: String},
     name_hotel:{type: String},
-    price_base:{type: Number},
+    price_base:{type: Number, defaulf: 0},
     prices:[Number],
     total_prices:[Number],
     accomodatios_category:{type:String},
@@ -64,7 +64,8 @@ const totalPrices = new Schema({
     subtotal: [Number],
     cost_transfers:[Number],
     final_cost:[Number],
-    price_pp:[Number]
+    price_pp:[Number],
+    porcentajeTD: {type: Number}
 
 },{_id:false})
 const OperatorsSchema = Schema({
@@ -73,6 +74,7 @@ const OperatorsSchema = Schema({
     city: {type: String},
     prices:[Number],   
     notes: {type: String}
+   
 }, { _id: false })
 
 const quoterSchema = new Schema({
