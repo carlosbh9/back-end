@@ -5,6 +5,7 @@ const ExperienceService = require('../../models/experience.schema')
 const GourmetService = require('../../models/gourmet.schema')
 const GuideService = require('../../models/guides.schema')
 const RestaurantService = require('../../models/Restaurant.schema')
+const TransportService = require('../../models/transport.schema')
 
 exports.getServicePrices = async (req, res) => {
     try {
@@ -97,12 +98,24 @@ exports.getServicePrices = async (req, res) => {
               const calculatedPrice = calculateRestaurantPrice(serviceData,children_ages,number_paxs,date);
               results.push({
                 city:city,
-               
                 name_service: serviceData.name,
                 price_base: calculatedPrice[0],
                 prices: calculatedPrice,
               });
             }
+            break;
+            case 'transport':
+            serviceData = await TransportService.findById(service_id);
+            if (serviceData) {
+              const calculatedPrice = calculateVehiclePrice(serviceData,number_paxs);
+              results.push({
+                city:city,
+                name_service: serviceData.nombre,
+                price_base: calculatedPrice[0],
+                prices: calculatedPrice,
+              });
+            }
+            break;
           // case 'operator':
           //   // Consulta en la colección OperatorService
           //   serviceData = await OperatorService.findById(service_id);
@@ -287,3 +300,29 @@ exports.getServicePrices = async (req, res) => {
     // Calcular el precio total multiplicado por cada número en number_paxs usando map
     return number_paxs.map(paxCount => finalPrice * paxCount);
     }
+
+    function calculateVehiclePrice(serviceData, number_paxs) {
+      return number_paxs.map(numPax => {
+          let total = 0;
+  
+          // Determina el tipo de vehículo que corresponde según el número de pasajeros
+          let selectedVehicle = null;
+  
+          if (numPax >= 1 && numPax <= 3) {
+              selectedVehicle = serviceData.type_vehicle.find(vehicle => vehicle.name_type_vehicle === "CAMIONETA/VW TRANSPORTER /TOYOTA HIACE 01 - 03");
+          } else if (numPax >= 4 && numPax <= 7) {
+              selectedVehicle = serviceData.type_vehicle.find(vehicle => vehicle.name_type_vehicle === "VW CRAFTER 04 - 07");
+          } else if (numPax >= 8 && numPax <= 15) {
+              selectedVehicle = serviceData.type_vehicle.find(vehicle => vehicle.name_type_vehicle === "SPRINTER MB 08 - 15/VW CRAFTER DLX 4 PAX");
+          } else if (numPax >= 16 && numPax <= 25) {
+              selectedVehicle = serviceData.type_vehicle.find(vehicle => vehicle.name_type_vehicle === "MINIBUS 16 - 25");
+          }
+  
+          // Si encontramos el vehículo adecuado, sumamos su precio
+          if (selectedVehicle) {
+              total = selectedVehicle.price;
+          }
+  
+          return total;
+      });
+  }
