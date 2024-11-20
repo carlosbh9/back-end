@@ -18,8 +18,6 @@ exports.getServicePrices = async (req, res) => {
   
         // Condiciones según `service_type`
         switch (service_type) {
-          
-  
           case 'entrance':
             // Consulta en la colección EntranceService
             serviceData = await EntranceService.findById(service_id);
@@ -195,7 +193,7 @@ exports.getServicePrices = async (req, res) => {
     const priceInfo = serviceData.prices.find(price => price.groupSize === numPax);
     
     // Si se encuentra un precio para ese tamaño de grupo, devuélvelo; si no, devuelve null o un valor predeterminado
-    return priceInfo ? priceInfo.pricePerPerson : null;
+    return priceInfo ? priceInfo.pricePerPerson : 0;
   });
   }
 
