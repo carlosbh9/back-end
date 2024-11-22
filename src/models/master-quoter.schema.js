@@ -18,7 +18,8 @@ const daysSchema = new Schema({
 }) 
 
 const masterQuoterSchema = new Schema({
-    name: { type: String, required: true },// Nombre de la opción programada
+    name: { type: String, required: true },
+    type: { type: String},
     days: {type: Number} ,
     destinations: {type:String},
     day: [daysSchema]

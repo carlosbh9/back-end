@@ -150,7 +150,7 @@ router.delete('/:id', async (req, res) => {
 // Ruta para obtener todas las Master Quoter con solo las referencias a los servicios (_id)
 router.get('/', async (req, res) => {
     try {
-        const options = await masterQuoter.find().select('_id name days day destinations');
+        const options = await masterQuoter.find().select('_id name type days day destinations');
         res.status(200).json(options);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los Master Quoter', error });

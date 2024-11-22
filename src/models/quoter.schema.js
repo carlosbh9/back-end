@@ -77,6 +77,15 @@ const OperatorsSchema = Schema({
    
 }, { _id: false })
 
+const CruisesSchema = Schema({
+    name: {type: String},
+    operator: {type: String},
+    price_conf: {type: Number},
+    prices:[Number],   
+    notes: {type: String}
+   
+}, { _id: false })
+
 const quoterSchema = new Schema({
     guest: {type: String},
     FileCode: {type:String},
@@ -93,6 +102,7 @@ const quoterSchema = new Schema({
     hotels:[hotelSchema],
     flights:[flightsSchema],
     operators: [OperatorsSchema],
+    cruises: [CruisesSchema],
     total_prices:totalPrices
     // services2:[{
     //     service_id: { type: Schema.Types.ObjectId, refPath: 'services2.type_service' },  // Referencia dinámica
