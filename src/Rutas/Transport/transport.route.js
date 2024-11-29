@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Transport = require('../../../src/models/transport.schema');
+const {authenticate,authorize} = require('../../middlewares/auth')
+//const authorize = require('../../middlewares/auth')
 
 // Crear un nuevo restaurante
 router.post('/', async (req, res) => {

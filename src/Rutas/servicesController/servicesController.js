@@ -324,3 +324,5 @@ exports.getServicePrices = async (req, res) => {
           return total;
       });
   }
+
+  

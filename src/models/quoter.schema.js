@@ -87,7 +87,8 @@ const CruisesSchema = Schema({
 }, { _id: false })
 
 const quoterSchema = new Schema({
-    guest: {type: String},
+    contact_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    guest: {type:String},
     FileCode: {type:String},
     travelDate:{
         start:String,
@@ -104,11 +105,15 @@ const quoterSchema = new Schema({
     operators: [OperatorsSchema],
     cruises: [CruisesSchema],
     total_prices:totalPrices
-    // services2:[{
-    //     service_id: { type: Schema.Types.ObjectId, refPath: 'services2.type_service' },  // Referencia dinámica
-    //         type_service: { type: String, required: true, enum: ['Entrances', 'Expeditions'] },  // Tipos de servicio
-    //         price: { type: Number }  // Precio en el momento de la cotización
-    // }]
-
 },{timestamps: true})
+
+
+// Esquema de la cotización
+// const quoterSchema = new Schema({
+//    // guest: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+//     guest: { type: Schema.Types.ObjectId, ref: 'Contact' }, // Referencia al contacto
+//     versions: [quoterVersionSchema], // Array de versiones de cotización
+//     isApproved: { type: Boolean, default: false },
+//   },{timestamps: true});
+
  module.exports = mongoose.model('Quoter',quoterSchema);
