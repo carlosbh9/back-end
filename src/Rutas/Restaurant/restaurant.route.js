@@ -17,7 +17,9 @@ router.post('/', async (req, res) => {
 // Obtener todos los restaurantes
 router.get('/', async (req, res) => {
     try {
-        const restaurants = await Restaurant.find();
+        const sortField = req.query.sort || 'name';  // Por defecto ordenar por nombre
+        const sortOrder = req.query.order === 'desc' ? -1 : 1;
+        const restaurants = await Restaurant.find().sort({ [sortField]: sortOrder }).exec();
         res.status(200).send(restaurants);
     } catch (error) {
         res.status(500).send(error);

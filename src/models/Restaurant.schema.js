@@ -36,6 +36,10 @@ const restaurantSchema = new Schema({
     price_pp:{
         type: Number
     },
+    priceperson: { 
+        type: Boolean, 
+        required: true
+    },
     child_rate: [childRateSchema],
     price_guide_pp: {
         type: Number

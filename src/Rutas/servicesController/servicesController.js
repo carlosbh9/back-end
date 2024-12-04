@@ -193,7 +193,7 @@ exports.getServicePrices = async (req, res) => {
     const priceInfo = serviceData.prices.find(price => price.groupSize === numPax);
     
     // Si se encuentra un precio para ese tamaño de grupo, devuélvelo; si no, devuelve null o un valor predeterminado
-    return priceInfo ? priceInfo.pricePerPerson : 0;
+    return priceInfo ? priceInfo.pricePerPerson * numPax : 0;
   });
   }
 

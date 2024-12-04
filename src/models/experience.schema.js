@@ -39,6 +39,14 @@ const experienceSchema = new Schema({
     approximateDuration: {
         type: String
     },
+    priceperson: { 
+        type: Boolean, 
+        required: true
+    },
+    guide: {
+        type: Boolean,
+        default: false
+    },
     take_notes:{type:String},
     politica_canc:{type: String},
     contac_phone:{type:String},
