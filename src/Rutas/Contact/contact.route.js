@@ -13,7 +13,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-// Obtener todos los contactos
+// //Obtener todos los contactos
 // router.get('/', async (req, res) => {
 //     try {
 //         const contacts = await Contact.find();
@@ -63,30 +63,31 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-router.get('/', async (req, res) => {
-    try {
-      const contacts = await Contact.find()
-        .populate({
-          path: 'cotizations',   // Nombre del campo que referencia a las cotizaciones
-          select: 'createdAt'    // Solo seleccionamos el campo createdAt de las cotizaciones
-        });
+// router.get('/', async (req, res) => {
+//     try {
+//       const contacts = await Contact.find()
+//         .populate({
+//           path: 'cotizations',   // Nombre del campo que referencia a las cotizaciones
+//           select: 'name_version _id createdAt'    // Solo seleccionamos el campo createdAt de las cotizaciones
+//         });
   
-      // Ahora, transformamos los contactos para devolver solo el id y la fecha de creación de las cotizaciones
-      const contactsWithCotizations = contacts.map(contact => {
-        return {
-          ...contact.toObject(), // Convertimos el documento a un objeto para manipularlo
-          cotizations: contact.cotizations.map(cotization => ({
-            id: cotization._id,     // Incluimos el id de la cotización
-            createdAt: cotization.createdAt  // Incluimos la fecha de creación
-          }))
-        };
-      });
+//       // Ahora, transformamos los contactos para devolver solo el id y la fecha de creación de las cotizaciones
+//       const contactsWithCotizations = contacts.map(contact => {
+//         return {
+//           ...contact.toObject(), // Convertimos el documento a un objeto para manipularlo
+//           cotizations: contact.cotizations.map(cotization => ({
+//             id: cotization.quoter,     // Incluimos el id de la cotización
+//             name_version:cotization.name_version,
+//             createdAt: cotization.createdAt  // Incluimos la fecha de creación
+//           }))
+//         };
+//       });
   
-      res.status(200).json(contactsWithCotizations);  // Devolvemos los contactos con las cotizaciones
-    } catch (error) {
-      console.error(error);
-      res.status(500).send(error);  // Error de servidor si ocurre algo mal
-    }
-  });
+//       res.status(200).json(contactsWithCotizations);  // Devolvemos los contactos con las cotizaciones
+//     } catch (error) {
+//       console.error(error);
+//       res.status(500).send(error);  // Error de servidor si ocurre algo mal
+//     }
+//   });
 
 module.exports = router;

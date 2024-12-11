@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const Entrance = require('../../../src/models/entrances.schema');
-
 // Crear un nuevo restaurante
 router.post('/', async (req, res) => {
     try {
