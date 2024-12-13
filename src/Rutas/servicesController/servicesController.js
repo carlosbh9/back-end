@@ -9,7 +9,7 @@ const TransportService = require('../../models/transport.schema')
 
 exports.getServicePrices = async (req, res) => {
     try {
-      const { services ,children_ages ,number_paxs , date,city} = req.body; // array de servicios seleccionados
+      const { services ,children_ages ,number_paxs , date} = req.body; // array de servicios seleccionados
       const results = [];
   
       for (const service of services) {
@@ -24,7 +24,7 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateEntrancePrice(serviceData,children_ages,number_paxs);
               results.push({
-                city:city,
+                city:service.city,
             
                 name_service: serviceData.description,
                 price_base: calculatedPrice[0],
@@ -38,7 +38,7 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateExpeditionPrice(serviceData,number_paxs);
               results.push({
-                city:city,
+                city:service.city,
            
                 name_service: serviceData.name,
                 price_base: calculatedPrice[0],
@@ -53,7 +53,7 @@ exports.getServicePrices = async (req, res) => {
               if (serviceData) {
                 const calculatedPrice = calculateExperiencePrice(serviceData,number_paxs);
                 results.push({
-                  city:city,
+                  city:service.city,
              
                   name_service: serviceData.name,
                   price_base: calculatedPrice[0],
@@ -67,7 +67,7 @@ exports.getServicePrices = async (req, res) => {
               if (serviceData) {
                 const calculatedPrice = calculateGourmetPrice(serviceData,children_ages,number_paxs);
                 results.push({
-                  city:city,
+                  city:service.city,
                
                   name_service: serviceData.activitie,
                   price_base: calculatedPrice[0],
@@ -80,8 +80,9 @@ exports.getServicePrices = async (req, res) => {
             serviceData = await GuideService.findById(service_id);
             if (serviceData) {
               const calculatedPrice = calculateGuidePrice(serviceData,children_ages,number_paxs,date);
+            
               results.push({
-                city:city,
+                city:service.city,
            
                 name_service: serviceData.name_guide,
                 price_base: calculatedPrice[0],
@@ -95,7 +96,7 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateRestaurantPrice(serviceData,children_ages,number_paxs,date);
               results.push({
-                city:city,
+                city:service.city,
                 name_service: serviceData.name,
                 price_base: calculatedPrice[0],
                 prices: calculatedPrice,
@@ -107,7 +108,7 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateVehiclePrice(serviceData,number_paxs);
               results.push({
-                city:city,
+                city:service.city,
                 name_service: serviceData.nombre,
                 price_base: calculatedPrice[0],
                 prices: calculatedPrice,
