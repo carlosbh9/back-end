@@ -59,8 +59,8 @@ router.delete('/:id', async (req, res) => {
 
         // Buscar el contacto que tiene esta cotización asociada
         const contact = await Contact.findOneAndUpdate(
-            { cotizations: quoter._id },  // Buscar contacto que tiene esta cotización en el array 'cotizations'
-            { $pull: { cotizations: quoter._id } },  // Eliminar la cotización del array 'cotizations'
+            { 'cotizations.quoter_id': quoter._id },  // Buscar contacto que tiene esta cotización en el array 'cotizations'
+            { $pull: { cotizations:{ quoter_id: quoter._id } } },  // Eliminar la cotización del array 'cotizations'
             { new: true } // Devuelve el contacto actualizado
         );
 

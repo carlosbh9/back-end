@@ -13,7 +13,7 @@ exports.getServicePrices = async (req, res) => {
       const results = [];
   
       for (const service of services) {
-        const { service_id, service_type} = service;
+        const { service_id, service_type,operator_id} = service;
         let serviceData;
   
         // Condiciones según `service_type`
@@ -117,16 +117,16 @@ exports.getServicePrices = async (req, res) => {
             break;
           // case 'operator':
           //   // Consulta en la colección OperatorService
-          //   serviceData = await OperatorService.findById(service_id);
+          //   serviceData = await OperatorService.findOne({ _id: service_id, // Filtra por el ID principal
+          //     'servicios._id': operator_id});
+         
           //   if (serviceData) {
-          //     const calculatedPrice = calculateOperatorPrice(serviceData);
+          //    // const calculatedPrice = calculateOperatorsPrice(serviceData,number_paxs);
           //     results.push({
-          //       service_id,
-          //       name: serviceData.name,
-          //       price: calculatedPrice,
-          //       date: serviceData.date,
-          //       day: serviceData.day,
-          //       notes: serviceData.notes || 'N/A',
+          //       city:service.city,
+          //       name_service: serviceData.nombre,
+          //       price_base: serviceData,
+          //       prices: serviceData,
           //     });
           //   }
           //   break;
@@ -140,15 +140,11 @@ exports.getServicePrices = async (req, res) => {
       res.status(200).json({services:results,date:date});
     } catch (error) {
       console.error('Error obteniendo precios de servicios:', error);
-      res.status(500).json({ message: 'Error al obtener precios de servicios' });
+      res.status(500).json({ message: 'Error al obtener precios de servicios'+error });
     }
   };
   
-  // Funciones auxiliares para calcular precios según el tipo de servicio
-  function calculateOperatorPrice(serviceData) {
-    // Aplica tus condiciones de cálculo específicas para operadores
-    return serviceData.basePrice * 1.1; // Ejemplo simple, ajusta según tu lógica
-  }
+
   
   function calculateEntrancePrice(serviceData,children_ages,number_paxs) {
      // Extrae los precios y límites de edad
@@ -187,16 +183,36 @@ exports.getServicePrices = async (req, res) => {
   }
 
 
-  function calculateExperiencePrice(serviceData,number_paxs) {
-  // Array para almacenar los precios totales de cada grupo de pasajeros
-  return number_paxs.map(numPax => {
-    // Busca en `prices` el precio que corresponde al tamaño del grupo `numPax`
-    const priceInfo = serviceData.prices.find(price => price.groupSize === numPax);
-    
-    // Si se encuentra un precio para ese tamaño de grupo, devuélvelo; si no, devuelve null o un valor predeterminado
-    return priceInfo ? priceInfo.pricePerPerson * numPax : 0;
-  });
-  }
+  function calculateExperiencePrice(serviceData,number_paxs,children_ages) {
+    const isPricePerPerson = serviceData.priceperson; // Determinar si es por persona o grupo
+    const childRate = serviceData.childRate;
+  
+    return number_paxs.map(numPax => {
+      const priceInfo = serviceData.prices.find(price => price.groupSize === numPax);
+      if (!priceInfo) return 0;
+  
+      if (!isPricePerPerson) {
+        return priceInfo.pricePerPerson;
+      } else {
+        let totalPrice = 0;
+  
+        // Asegurarse de que children_ages sea un array
+        (children_ages || []).forEach(age => {
+          if (age >= childRate.minimumAge && age <= childRate.upTo) {
+            alert(`La edad ${age} no cumple con la edad mínima de ${childRate.minimumAge} años para aplicar el precio de niño.`);
+            totalPrice += childRate.pp || priceInfo.pricePerPerson;
+          } else {
+            totalPrice += priceInfo.pricePerPerson;
+          }
+        });
+  
+        const numAdults = numPax - (children_ages ? children_ages.length : 0);
+        totalPrice += numAdults * priceInfo.pricePerPerson;
+  
+        return totalPrice;
+      }
+    });
+}
 
   function calculateGourmetPrice(serviceData,children_ages,number_paxs) {
     return number_paxs.map(numPax => {
@@ -272,32 +288,47 @@ exports.getServicePrices = async (req, res) => {
 
     function calculateRestaurantPrice(serviceData,children_ages,number_paxs,date) {
 
-        // Precio general y posibles precios especiales
-    const generalPrice = serviceData.price_pp || 0;
-    let finalPrice = generalPrice;
-
-    // Revisar si la fecha coincide con una fecha especial
-    serviceData.special_dates.forEach(s => {
-        if(s.date=== date){
-          finalPrice=s.price_add;
-        }
-    })
-    // const specialDate = serviceData.special_dates.find(s => s.date === date);
-    // if (specialDate) {
-    //     finalPrice = specialDate.price_add;
-    // }
-
-    // Verificar precios de niño según la edad
-    children_ages.forEach(age => {
-        serviceData.child_rate.forEach(childRate => {
-            if (childRate.upTo !== null && age <= childRate.upTo) {
-                finalPrice = Math.min(finalPrice, childRate.price_pp); // Toma el precio de niño si es menor
-            }
+      const isPricePerPerson = serviceData.priceperson || false; // Determina si es precio por persona o grupal
+      let basePrice = serviceData.price_pp || 0;
+    
+      // Verificar si la fecha coincide con una fecha especial y ajustar el precio base
+      const specialDate = serviceData.special_dates.find(special => special.date === date);
+      if (specialDate) {
+        basePrice += parseFloat(specialDate.price_add); // Suma el precio especial si aplica
+      }
+    
+      // Determinar el precio final considerando niños
+      function calculateFinalPrice(paxCount) {
+        let totalPrice = 0;
+    
+        // Procesar precios para niños primero
+        children_ages.forEach(age => {
+          const childRate = serviceData.child_rate.find(rate => rate.upTo !== null && age <= rate.upTo);
+          if (childRate) {
+            totalPrice += childRate.price_pp; // Precio para niños dentro del rango
+          } else {
+            alert(`La edad ${age} no cumple con el rango de precios para niños. Aplicando precio de adulto.`);
+            totalPrice += basePrice; // Precio de adulto si no aplica el precio de niño
+          }
         });
-    });
-
-    // Calcular el precio total multiplicado por cada número en number_paxs usando map
-    return number_paxs.map(paxCount => finalPrice * paxCount);
+    
+        // Calcular el precio para los adultos restantes
+        const numAdults = paxCount - children_ages.length;
+        if (numAdults > 0) {
+          totalPrice += numAdults * basePrice;
+        }
+    
+        return totalPrice;
+      }
+    
+      // Procesar precios según si es por persona o grupal
+      return number_paxs.map(paxCount => {
+        if (isPricePerPerson) {
+          return calculateFinalPrice(paxCount); // Precio por persona
+        } else {
+          return basePrice; // Precio grupal (mismo para todos los tamaños de grupo)
+        }
+      });
     }
 
     function calculateVehiclePrice(serviceData, number_paxs) {
@@ -324,6 +355,31 @@ exports.getServicePrices = async (req, res) => {
   
           return total;
       });
+  }
+
+  function calculateOperatorsPrice(serviceData, number_paxs) {
+    const { prices } = serviceData;
+
+    // Función para obtener el precio según el rango de pasajeros
+    function getPriceForPax(paxCount) {
+      const priceEntry = prices.find(
+        price => paxCount >= price.range_min && paxCount <= price.range_max
+      );
+  
+      if (priceEntry) {
+        return priceEntry.price;
+      } else {
+        console.warn(`No se encontró un rango de precio para ${paxCount} pasajeros.`);
+        return 0; // Retornar 0 si no hay un rango definido para el número de pasajeros
+      }
+    }
+  
+    // Calcular precios por cada cantidad de pasajeros en `number_paxs`
+    return number_paxs.map(paxCount => ({
+      paxCount,
+      price: getPriceForPax(paxCount),
+      total: getPriceForPax(paxCount) * paxCount // Precio total por número de pasajeros
+    }));
   }
 
   

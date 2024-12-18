@@ -19,7 +19,7 @@ const DaySchema= new Schema({
     name_service: { type: String },
     price_base: { type: Number}, // Precio base del servicio
     prices: [Number], // Array de precios adicionales
-    notes: { type: String }
+    notes: { type: String , default: ''}
 });
 
 const ServicesSchema = new Schema({
