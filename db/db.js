@@ -4,7 +4,7 @@ require('dotenv').config()
 const connectDB = async () => {
     try {
       //  await mongoose.connect('mongodb://localhost:27017/bdcotizacion');
-        await mongoose.connect(process.env.DB_NAME)       
+        await mongoose.connect('mongodb+srv://benavidesc802:xT531NRftG1uZvsO@atlascluster.gj289zh.mongodb.net/bdcotizacion?retryWrites=true&w=majority&appName=AtlasCluster')       
             console.log('MongoDB connected');
     } catch (err) {
         console.error(err.message);
