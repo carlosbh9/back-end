@@ -42,7 +42,6 @@ function routes(app){
     route.post('/createquoter',authenticate,createQuoter.createQuoter)
     route.use('/contacts',contactRoute)
     route.use("/limagourmet",limaGourmet);
-  
     route.use('/extras',extrasRoute)
     route.use('/',authenticate,roleFilterMiddleware)
 

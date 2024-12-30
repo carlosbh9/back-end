@@ -24,11 +24,12 @@ exports.getServicePrices = async (req, res) => {
             serviceData = await EntranceService.findById(service_id);
             if (serviceData) {
               const calculatedPrice = calculateEntrancePrice(serviceData,children_ages,number_paxs);
+              const calculatePricebase=calculateEntrancePrice(serviceData,children_ages,[1]);
               results.push({
                 city:service.city,
-            
+                day: service.day,
                 name_service: serviceData.description,
-                price_base: calculatedPrice[0],
+                price_base: calculatePricebase[0],
                 prices: calculatedPrice,
               });
             }
@@ -38,11 +39,13 @@ exports.getServicePrices = async (req, res) => {
             serviceData = await ExpeditionService.findById(service_id);
             if (serviceData) {
               const calculatedPrice = calculateExpeditionPrice(serviceData,number_paxs);
+              const calculatePricebase=calculateExpeditionPrice(serviceData,[1]);
+
               results.push({
                 city:service.city,
-           
+                day: service.day,
                 name_service: serviceData.name,
-                price_base: calculatedPrice[0],
+                price_base: calculatePricebase[0],
                 prices: calculatedPrice,
               });
             }
@@ -53,11 +56,13 @@ exports.getServicePrices = async (req, res) => {
               serviceData = await ExperienceService.findById(service_id);
               if (serviceData) {
                 const calculatedPrice = calculateExperiencePrice(serviceData,number_paxs);
+                const calculatePricebase=calculateExperiencePrice(serviceData,[1]);
+
                 results.push({
                   city:service.city,
-             
+                  day: service.day,
                   name_service: serviceData.name,
-                  price_base: calculatedPrice[0],
+                  price_base: calculatePricebase[0],
                   prices: calculatedPrice,
                 });
               }
@@ -67,11 +72,13 @@ exports.getServicePrices = async (req, res) => {
               serviceData = await GourmetService.findById(service_id);
               if (serviceData) {
                 const calculatedPrice = calculateGourmetPrice(serviceData,children_ages,number_paxs);
+                const calculatePricebase=calculateGourmetPrice(serviceData,children_ages,[1]);
+
                 results.push({
                   city:service.city,
-               
+                  day: service.day,
                   name_service: serviceData.activitie,
-                  price_base: calculatedPrice[0],
+                  price_base: calculatePricebase[0],
                   prices: calculatedPrice,
                 });
               }
@@ -81,12 +88,14 @@ exports.getServicePrices = async (req, res) => {
             serviceData = await GuideService.findById(service_id);
             if (serviceData) {
               const calculatedPrice = calculateGuidePrice(serviceData,children_ages,number_paxs,date);
+              const calculatePricebase=calculateGuidePrice(serviceData,children_ages,[1],date);
+
             
               results.push({
                 city:service.city,
-           
+                day: service.day,
                 name_service: serviceData.name_guide,
-                price_base: calculatedPrice[0],
+                price_base: calculatePricebase[0],
                 prices: calculatedPrice,
               });
             }
@@ -96,10 +105,13 @@ exports.getServicePrices = async (req, res) => {
             serviceData = await RestaurantService.findById(service_id);
             if (serviceData) {
               const calculatedPrice = calculateRestaurantPrice(serviceData,children_ages,number_paxs,date);
+              const calculatePricebase=calculateRestaurantPrice(serviceData,children_ages,[1],date);
+
               results.push({
                 city:service.city,
+                day: service.day,
                 name_service: serviceData.name,
-                price_base: calculatedPrice[0],
+                price_base: calculatePricebase[0],
                 prices: calculatedPrice,
               });
             }
@@ -108,10 +120,13 @@ exports.getServicePrices = async (req, res) => {
             serviceData = await TransportService.findById(service_id);
             if (serviceData) {
               const calculatedPrice = calculateVehiclePrice(serviceData,number_paxs);
+              const calculatePricebase=calculateVehiclePrice(serviceData,[1]);
+
               results.push({
                 city:service.city,
+                day: service.day,
                 name_service: serviceData.nombre,
-                price_base: calculatedPrice[0],
+                price_base: calculatePricebase[0],
                 prices: calculatedPrice,
               });
             }
@@ -126,10 +141,13 @@ exports.getServicePrices = async (req, res) => {
             
             if (serviceData) {
               const calculatedPrice = calculateOperatorsPrice(serviceData,number_paxs);
+              const calculatePricebase=calculateOperatorsPrice(serviceData,[1]);
+
               results.push({
-                 city:service.city,
+                  city:service.city,
+                  day: service.day,
                   name_service: serviceData.descripcion,
-                  price_base: calculatedPrice[0],
+                  price_base: calculatePricebase[0],
                   prices: calculatedPrice,
               });
             }
@@ -144,10 +162,13 @@ exports.getServicePrices = async (req, res) => {
               
               if (serviceData) {
                 const calculatedPrice = calculateTrainsPrices(serviceData,number_paxs,children_ages);
+                const calculatePricebase=calculateTrainsPrices(serviceData,[1],children_ages);
+
                 results.push({
                     city:service.city,
+                    day: service.day,
                     name_service: serviceData.serviceName,
-                    price_base: calculatedPrice[0],
+                    price_base: calculatePricebase[0],
                     prices: calculatedPrice,
                 });
               }
