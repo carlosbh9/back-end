@@ -24,14 +24,25 @@ exports.getServicePrices = async (req, res) => {
             serviceData = await EntranceService.findById(service_id);
             if (serviceData) {
               const calculatedPrice = calculateEntrancePrice(serviceData,children_ages,number_paxs);
-              const calculatePricebase=calculateEntrancePrice(serviceData,children_ages,[1]);
+              const calculatePricebase=calculateEntrancePrice(serviceData,[],[1]);
               results.push({
                 city:service.city,
                 day: service.day,
                 name_service: serviceData.description,
-                price_base: calculatePricebase[0],
-                prices: calculatedPrice,
+                price_base: calculatePricebase.adultPrices[0],
+                prices: calculatedPrice.adultPrices,
+                
               });
+
+              if (calculatedPrice.childPrices[0] > 0) {
+                results.push({
+                  city: service.city,
+                  day: service.day,
+                  name_service: `${serviceData.description} KIDS`, // Agregamos "kids" al nombre del servicio
+                  price_base: 0 ,  // Precio base para adultos
+                  prices: calculatedPrice.childPrices,  // Precios solo para niños
+                });
+              }
             }
             break;
             
@@ -40,7 +51,6 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateExpeditionPrice(serviceData,number_paxs);
               const calculatePricebase=calculateExpeditionPrice(serviceData,[1]);
-
               results.push({
                 city:service.city,
                 day: service.day,
@@ -72,31 +82,40 @@ exports.getServicePrices = async (req, res) => {
               serviceData = await GourmetService.findById(service_id);
               if (serviceData) {
                 const calculatedPrice = calculateGourmetPrice(serviceData,children_ages,number_paxs);
-                const calculatePricebase=calculateGourmetPrice(serviceData,children_ages,[1]);
+                const calculatePricebase=calculateGourmetPrice(serviceData,[],[1]);
 
                 results.push({
                   city:service.city,
                   day: service.day,
                   name_service: serviceData.activitie,
-                  price_base: calculatePricebase[0],
-                  prices: calculatedPrice,
+                  price_base: calculatePricebase.adultPrices[0],
+                  prices: calculatedPrice.adultPrices,
                 });
+
+                if (calculatedPrice.childPrices[0] > 0) {
+                  results.push({
+                    city: service.city,
+                    day: service.day,
+                    name_service: `${serviceData.activitie} KIDS`, // Agregamos "kids" al nombre del servicio
+                    price_base: 0 ,  // Precio base para adultos
+                    prices: calculatedPrice.childPrices,  // Precios solo para niños
+                  });
+                }
               }
           break; 
 
           case 'guides':
             serviceData = await GuideService.findById(service_id);
             if (serviceData) {
-              const calculatedPrice = calculateGuidePrice(serviceData,children_ages,number_paxs,date);
-              const calculatePricebase=calculateGuidePrice(serviceData,children_ages,[1],date);
-
-            
+              const calculatedPrice = calculateGuidePrice(serviceData,number_paxs,date);
+              const calculatePricebase=calculateGuidePrice(serviceData,[1],date);
               results.push({
                 city:service.city,
                 day: service.day,
                 name_service: serviceData.name_guide,
-                price_base: calculatePricebase[0],
-                prices: calculatedPrice,
+                price_base: calculatePricebase.totalPrice[0],
+                prices: calculatedPrice.totalPrice,
+                mesagge: calculatedPrice.message
               });
             }
             
@@ -111,9 +130,21 @@ exports.getServicePrices = async (req, res) => {
                 city:service.city,
                 day: service.day,
                 name_service: serviceData.name,
-                price_base: calculatePricebase[0],
-                prices: calculatedPrice,
+                price_base: calculatePricebase.adultPrices[0],
+                prices: calculatedPrice.adultPrices,
+                message:calculatedPrice.message
               });
+
+              if (calculatedPrice.childPrices[0] > 0) {
+                results.push({
+                  city: service.city,
+                  day: service.day,
+                  name_service: `${serviceData.name} KIDS`, 
+                  price_base: 0 ,
+                  prices: calculatedPrice.childPrices,  
+                  message:calculatedPrice.message
+                });
+              }
             }
             break;
             case 'transport':
@@ -189,34 +220,76 @@ exports.getServicePrices = async (req, res) => {
   
 
   
-  function calculateEntrancePrice(serviceData,children_ages,number_paxs) {
-     // Extrae los precios y límites de edad
-  const childPrice = serviceData.childRate.pp;
-  const adultPrice = serviceData.price_pp;
-  const maxChildAge = serviceData.childRate.upTo;
+  // function calculateEntrancePrice(serviceData,children_ages,number_paxs) {
+  //    // Extrae los precios y límites de edad
+  // const childPrice = serviceData.childRate.pp;
+  // const adultPrice = serviceData.price_pp;
+  // const maxChildAge = serviceData.childRate.upTo;
 
-  // Mapea cada cantidad en `number_paxs` para calcular el precio total correspondiente
-  return number_paxs.map(numPax => {
-    let totalPrice = 0;
-    let numChildren = 0;
+  // // Mapea cada cantidad en `number_paxs` para calcular el precio total correspondiente
+  // return number_paxs.map(numPax => {
+  //   let totalPrice = 0;
+  //   let numChildren = 0;
 
-    // Asigna el precio de niños hasta el límite de edad especificado
-    children_ages.forEach(age => {
-      if (age <= maxChildAge && numChildren < numPax) {
-        totalPrice += childPrice;
-        numChildren++;
-      }
-    });
+  //   // Asigna el precio de niños hasta el límite de edad especificado
+  //   children_ages.forEach(age => {
+  //     if (age <= maxChildAge && numChildren < numPax) {
+  //       totalPrice += childPrice;
+  //       numChildren++;
+  //     }
+  //   });
 
-    // Calcula el precio para los adultos restantes
-    const numAdults = numPax - numChildren;
-    totalPrice += numAdults * adultPrice;
+  //   // Calcula el precio para los adultos restantes
+  //   const numAdults = numPax - numChildren;
+  //   totalPrice += numAdults * adultPrice;
 
-    return totalPrice;
-  });
+  //   return totalPrice;
+  // });
     
-  }
+  // }
 
+  function calculateEntrancePrice(serviceData, children_ages, number_paxs) {
+    // Asumiendo que el servicio tiene precios diferenciados para niños y adultos
+    const childPrice = serviceData.childRate ? serviceData.childRate.pp : 0;
+    const adultPrice = serviceData.price_pp;
+    const maxChildAge = serviceData.childRate ? serviceData.childRate.upTo : 0;
+  
+    // Inicializamos arrays para almacenar los precios de niños y adultos
+    const childPrices = [];
+    const adultPrices = [];
+   
+ 
+    // Mapea cada cantidad en `number_paxs` para calcular el precio total correspondiente
+    number_paxs.forEach(numPax => {
+      let totalChildPrice = 0;
+      let totalAdultPrice = 0;
+      let numChildren = 0;
+  
+   
+      // Asigna el precio de niños hasta el límite de edad especificado
+      children_ages.forEach(age => {
+        if (age <= maxChildAge && numChildren < numPax) {
+          totalChildPrice += childPrice;  // Sumar precio para niños
+          numChildren++;
+        }
+      });
+  
+      // Calcula el precio para los adultos restantes
+      const numAdults = numPax - numChildren;
+      totalAdultPrice += numAdults * adultPrice;  // Sumar precio para adultos
+  
+      // Agregamos los precios de niños y adultos a sus respectivos arrays
+      childPrices.push(totalChildPrice);
+      adultPrices.push(totalAdultPrice);
+    });
+  
+    // Retorna ambos arrays: precios de niños y precios de adultos
+    return { childPrices, adultPrices };
+  }
+  
+  
+  
+  
   function calculateExpeditionPrice(serviceData,number_paxs) {
       const pricePerPerson = serviceData.price_pp;
   
@@ -256,40 +329,51 @@ exports.getServicePrices = async (req, res) => {
  }
 
   function calculateGourmetPrice(serviceData,children_ages,number_paxs) {
-    return number_paxs.map(numPax => {
+      const childPrices = [];
+      const adultPrices = [];
+    number_paxs.map(numPax => {
       let total = 0;
-  
+      let totalChildPrice = 0;
+      let totalAdultPrice = 0;
+
       if (numPax === 1) {
         // Si solo es un pasajero, usa `price_for_one_person`
-        total = serviceData.price_for_one_person;
+        totalAdultPrice = serviceData.price_for_one_person;
       } else {
         // Para más de un pasajero, aplica `childRate` y `price_pp`
         children_ages.slice(0, numPax).forEach(age => {
           if (age >= serviceData.childRate.from && age <= serviceData.childRate.upTo) {
-            total += serviceData.childRate.price;
+            totalChildPrice += serviceData.childRate.price;
           } else {
-            total += serviceData.price_pp;
+            totalChildPrice += serviceData.price_pp;
           }
         });
   
         // Para el resto de pasajeros (adultos)
         const adultsCount = numPax - children_ages.length;
         if (adultsCount > 0) {
-          total += adultsCount * serviceData.price_pp;
+          totalAdultPrice += adultsCount * serviceData.price_pp;
         }
+
       }
   
-      return total;
+      //return total;
+      childPrices.push(totalChildPrice);
+      adultPrices.push(totalAdultPrice);
+      //return { childPrices, adultPrices };
     });
+    return { childPrices, adultPrices };
   }
 
-  function calculateGuidePrice(serviceData,children_ages,number_paxs,date) {
-      return number_paxs.map(numPax => {
+  function calculateGuidePrice(serviceData,number_paxs,date) {
+      const totalPrice = []
+      let message = '';
+     number_paxs.map(numPax => {
         let total = 0;
-
+       
         // Determinar el número de niños y adultos
-        const childCount = children_ages.filter(age => age <= 12).length; // Niños menores de 12
-        const adultCount = numPax - childCount;
+        // const childCount = children_ages.filter(age => age <= 12).length; // Niños menores de 12
+        // const adultCount = numPax - childCount;
 
         // Determinar el precio base según el número de pasajeros (1 a 9)
         let basePrice = 0;
@@ -306,73 +390,133 @@ exports.getServicePrices = async (req, res) => {
         total += basePrice;
 
         // Considerar guía asistente si hay 3 o más niños menores de 12 años
-        if (childCount >= 3) {
-            total += (0.5 * serviceData.price_guide); // Guía asistente al 50%
-        }
+        // if (childCount >= 3) {
+        //     total += (0.5 * serviceData.price_guide); // Guía asistente al 50%
+        // }
 
         // Aplicar recargo del 50% en fechas específicas
         const surchargeDates = [
-            '2024-05-01', // 01 Mayo
-            '2024-07-28', // 28 Julio
-            '2024-07-29', // 29 Julio
-            '2024-12-25', // 25 Diciembre
-            '2024-01-01'  // 01 Enero
+            '2025-05-01', // 01 Mayo
+            '2025-07-28', // 28 Julio
+            '2025-07-29', // 29 Julio
+            '2025-12-25', // 25 Diciembre
+            '2025-01-01'  // 01 Enero
         ];
 
         if (surchargeDates.includes(date)) {
             total *= 1.5; // Aplicar recargo del 50%
+            message = 'Aplicar recargo del 50% por fechas especificas'
         }
-
-        return total;
+        totalPrice.push(total)
+       // return {total, message};
     });
+
+    return {totalPrice, message};
   }
 
-  function calculateRestaurantPrice(serviceData,children_ages,number_paxs,date) {
+  // function calculateRestaurantPrice(serviceData,children_ages,number_paxs,date) {
+  //     const adultPrices = []
+  //     const childPrices = []
+  //     let message = '';
+  //     const isPricePerPerson = serviceData.priceperson || false; // Determina si es precio por persona o grupal
+  //     let basePrice = serviceData.price_pp || 0;
+    
+  //     // Verificar si la fecha coincide con una fecha especial y ajustar el precio base
+  //     const specialDate = serviceData.special_dates.find(special => special.date === date);
+  //     if (specialDate) {
+  //       basePrice += parseFloat(specialDate.price_add); // Suma el precio especial si aplica
+  //     }
+    
+  //     // Determinar el precio final considerando niños
+  //     function calculateFinalPrice(paxCount) {
+  //       let totalPrice = 0;
+    
+  //       // Procesar precios para niños primero
+  //       children_ages.forEach(age => {
+  //         const childRate = serviceData.child_rate.find(rate => rate.upTo !== null && age <= rate.upTo);
+  //         if (childRate) {
+  //           totalPrice += childRate.price_pp; // Precio para niños dentro del rango
+  //         } else {
+  //           alert(`La edad ${age} no cumple con el rango de precios para niños. Aplicando precio de adulto.`);
+  //           totalPrice += basePrice; // Precio de adulto si no aplica el precio de niño
+  //         }
+  //       });
+    
+  //       // Calcular el precio para los adultos restantes
+  //       const numAdults = paxCount - children_ages.length;
+  //       if (numAdults > 0) {
+  //         totalPrice += numAdults * basePrice;
+  //       }
+    
+  //       return totalPrice;
+  //     }
+    
+  //     // Procesar precios según si es por persona o grupal
+  //     return number_paxs.map(paxCount => {
+  //       if (isPricePerPerson) {
+  //         return calculateFinalPrice(paxCount); // Precio por persona
+  //       } else {
+  //         return basePrice; // Precio grupal (mismo para todos los tamaños de grupo)
+  //       }
+  //     });
+  // }
 
-      const isPricePerPerson = serviceData.priceperson || false; // Determina si es precio por persona o grupal
-      let basePrice = serviceData.price_pp || 0;
-    
-      // Verificar si la fecha coincide con una fecha especial y ajustar el precio base
-      const specialDate = serviceData.special_dates.find(special => special.date === date);
-      if (specialDate) {
+  function calculateRestaurantPrice(serviceData, children_ages, number_paxs, date) {
+    const adultPrices = []; // Arreglo para precios de adultos
+    const childPrices = []; // Arreglo para precios de niños
+    let overallMessage = '';
+    const isPricePerPerson = serviceData.priceperson || false; // Determina si es precio por persona o grupal
+    let basePrice = serviceData.price_pp || 0;
+
+    // Verificar si la fecha coincide con una fecha especial y ajustar el precio base
+    const specialDate = serviceData.special_dates.find(special => special.date === date);
+    if (specialDate) {
         basePrice += parseFloat(specialDate.price_add); // Suma el precio especial si aplica
-      }
-    
-      // Determinar el precio final considerando niños
-      function calculateFinalPrice(paxCount) {
-        let totalPrice = 0;
-    
+        overallMessage  = ` precio especial aplicado para la fecha ${specialDate.date}`
+    }
+
+    // Determinar el precio final considerando niños
+    function calculateFinalPrice(paxCount) {
+        let totalPriceForAdults = 0;
+        let totalPriceForChildren = 0;
+        let localMessage = '';
         // Procesar precios para niños primero
         children_ages.forEach(age => {
-          const childRate = serviceData.child_rate.find(rate => rate.upTo !== null && age <= rate.upTo);
-          if (childRate) {
-            totalPrice += childRate.price_pp; // Precio para niños dentro del rango
-          } else {
-            alert(`La edad ${age} no cumple con el rango de precios para niños. Aplicando precio de adulto.`);
-            totalPrice += basePrice; // Precio de adulto si no aplica el precio de niño
-          }
+            const childRate = serviceData.child_rate.find(rate => rate.upTo !== null && age <= rate.upTo);
+            if (childRate) {
+                totalPriceForChildren += childRate.price_pp; 
+                localMessage =  ` se considero precio para niños de rango de ${childRate.upTo}`
+            } else {
+              
+              totalPriceForAdults += basePrice; // Precio de adulto si no aplica el precio de niño
+            }
         });
-    
+
         // Calcular el precio para los adultos restantes
         const numAdults = paxCount - children_ages.length;
         if (numAdults > 0) {
-          totalPrice += numAdults * basePrice;
+            totalPriceForAdults += numAdults * basePrice;
         }
-    
-        return totalPrice;
-      }
-    
-      // Procesar precios según si es por persona o grupal
-      return number_paxs.map(paxCount => {
-        if (isPricePerPerson) {
-          return calculateFinalPrice(paxCount); // Precio por persona
-        } else {
-          return basePrice; // Precio grupal (mismo para todos los tamaños de grupo)
-        }
-      });
-  }
 
-    
+        return { totalPriceForAdults, totalPriceForChildren , localMessage};
+    }
+
+    // Procesar precios según si es por persona o grupal
+    number_paxs.forEach(paxCount => {
+        const { totalPriceForAdults, totalPriceForChildren ,localMessage} = isPricePerPerson
+            ? calculateFinalPrice(paxCount) // Si es precio por persona, calculamos precios separados
+            : { totalPriceForAdults: basePrice, totalPriceForChildren: 0 }; // Si es grupal, solo se aplica precio base
+
+        // Almacenamos en los arreglos correspondientes
+        adultPrices.push(totalPriceForAdults);
+        childPrices.push(totalPriceForChildren);
+        overallMessage += localMessage;
+    });
+
+    return { adultPrices, childPrices ,message: overallMessage}; // Devolvemos los arreglos con los precios de adultos y niños
+}
+
+
   function calculateVehiclePrice(serviceData, number_paxs) {
       return number_paxs.map(numPax => {
           let total = 0;

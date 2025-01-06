@@ -97,6 +97,7 @@ const quoterSchema = new Schema({
     accomodations: {type: String},
     totalNights: {type:String},
     number_paxs:[Number],
+    children_ages: [Number],
     travel_agent:{type:String},
     exchange_rate:{type:String},
     services:[ServicesSchema],
