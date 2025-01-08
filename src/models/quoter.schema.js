@@ -35,7 +35,6 @@ const hotelSchema = new Schema({
     name_hotel:{type: String},
     price_base:{type: Number, defaulf: 0},
     prices:[Number],
-    total_prices:[Number],
     accomodatios_category:{type:String},
     notes: {type: String}
 }, { _id: false })

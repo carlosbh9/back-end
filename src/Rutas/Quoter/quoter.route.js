@@ -30,6 +30,13 @@ router.get('/:id', async (req, res) => {
         if (!quoter) {
             return res.status(404).send(boomErrors.notFound('Error, ID no válida/encontrada'));
         }
+        if (quoter.services && quoter.services.length > 0) {
+            quoter.services.sort((a, b) => a.day - b.day);
+        }hotels
+        if (quoter.hotels && quoter.hotels.length > 0) {
+            quoter.hotels.sort((a, b) => a.day - b.day);
+        }
+
         res.status(200).send(quoter);
     } catch (error) {
         res.status(500).send(error);
