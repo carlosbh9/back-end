@@ -32,7 +32,7 @@ router.get('/:id', async (req, res) => {
         }
         if (quoter.services && quoter.services.length > 0) {
             quoter.services.sort((a, b) => a.day - b.day);
-        }hotels
+        }
         if (quoter.hotels && quoter.hotels.length > 0) {
             quoter.hotels.sort((a, b) => a.day - b.day);
         }

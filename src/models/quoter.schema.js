@@ -85,10 +85,16 @@ const CruisesSchema = Schema({
    
 }, { _id: false })
 
+const QUOTE_STATUSES = {
+    WIP: 'WIP',
+    HOLD: 'HOLD',
+    SOLD: 'SOLD',
+    LOST: 'LOST',
+};
+
 const quoterSchema = new Schema({
     contact_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     guest: {type:String},
-    FileCode: {type:String},
     travelDate:{
         start:String,
         end: String
@@ -116,4 +122,5 @@ const quoterSchema = new Schema({
 //     isApproved: { type: Boolean, default: false },
 //   },{timestamps: true});
 
- module.exports = mongoose.model('Quoter',quoterSchema);
+
+module.exports = mongoose.model('Quoter',quoterSchema);
