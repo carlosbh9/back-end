@@ -148,16 +148,41 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Ruta para obtener todas las Master Quoter con solo las referencias a los servicios (_id)
+// router.get('/', async (req, res) => {
+//     try {
+//         const options = await masterQuoter.find().select('_id name type days day destinations');
+//         res.status(200).json(options);
+//     } catch (error) {
+//         res.status(500).json({ message: 'Error al obtener los Master Quoter', error });
+//     }
+// });
+
+// router.get('/', async (req, res) => {
+//     try {
+//         const options = await masterQuoter.find()
+//             .select('_id name type days day destinations')
+//             .sort({
+//                 type: 1,  // Primero ordena por `type` (1 = ascendente: "templates" antes de "tour options")
+//                 name: 1   // Luego, ordena alfabéticamente por `name` (1 = ascendente)
+//             });
+        
+//         res.status(200).json(options);
+//     } catch (error) {
+//         res.status(500).json({ message: 'Error al obtener los Master Quoter', error });
+//     }
+// });
 router.get('/', async (req, res) => {
     try {
-        const options = await masterQuoter.find().select('_id name type days day destinations');
+        const options = await masterQuoter.find()
+            .select('_id name type days day destinations')
+            .sort({ type: 1, name: 1 }); // Ordenar por tipo y luego por nombre
+        
         res.status(200).json(options);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los Master Quoter', error });
     }
 });
-
-// Ruta para obtener todas las Master Quoter con solo las referencias a los servicios (_id)
+// // Ruta para obtener todas las Master Quoter con solo las referencias a los servicios 
 router.get('/edit/:id', async (req, res) => {
     try {
         const options = await masterQuoter.findById(req.params.id)

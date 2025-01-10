@@ -10,7 +10,7 @@ router.get('/contacts', authenticate, async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
   
-    if (userRole === 'admin') {
+    if (userRole === 'admin' || 'ventas') {
       Contact.find()
         .then(contacts => res.json(contacts))
         .catch(err => res.status(500).json({ message: 'Error al obtener contactos', error: err }));
