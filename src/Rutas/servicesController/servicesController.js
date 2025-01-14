@@ -7,6 +7,7 @@ const GuideService = require('../../models/guides.schema')
 const RestaurantService = require('../../models/Restaurant.schema')
 const TransportService = require('../../models/transport.schema')
 const TrainService = require('../../models/train.schema')
+const ExtraService = require('../../models/extras.schema')
 
 exports.getServicePrices = async (req, res) => {
     try {
@@ -204,7 +205,22 @@ exports.getServicePrices = async (req, res) => {
                 });
               }
               break;
+
+            case 'extra': 
+                serviceData = await ExtraService.findById(service_id);
+                if (serviceData) {
+                  const calculatedPrice = calculateExtraPrice(serviceData,number_paxs);
+                  const calculatePricebase=calculateExtraPrice(serviceData,[1]);
+                  results.push({
+                    city:service.city,
+                    day: service.day,
+                    name_service: serviceData.name,
+                    price_base: calculatePricebase[0],
+                    prices: calculatedPrice
+                  });
+                }
             
+          break;   
           // Agrega más casos según los `service_type` y sus respectivas colecciones
           default:
             console.log(`Tipo de servicio desconocido: ${service_type}`);
@@ -219,34 +235,7 @@ exports.getServicePrices = async (req, res) => {
   };
   
 
-  
-  // function calculateEntrancePrice(serviceData,children_ages,number_paxs) {
-  //    // Extrae los precios y límites de edad
-  // const childPrice = serviceData.childRate.pp;
-  // const adultPrice = serviceData.price_pp;
-  // const maxChildAge = serviceData.childRate.upTo;
-
-  // // Mapea cada cantidad en `number_paxs` para calcular el precio total correspondiente
-  // return number_paxs.map(numPax => {
-  //   let totalPrice = 0;
-  //   let numChildren = 0;
-
-  //   // Asigna el precio de niños hasta el límite de edad especificado
-  //   children_ages.forEach(age => {
-  //     if (age <= maxChildAge && numChildren < numPax) {
-  //       totalPrice += childPrice;
-  //       numChildren++;
-  //     }
-  //   });
-
-  //   // Calcula el precio para los adultos restantes
-  //   const numAdults = numPax - numChildren;
-  //   totalPrice += numAdults * adultPrice;
-
-  //   return totalPrice;
-  // });
-    
-  // }
+ 
 
   function calculateEntrancePrice(serviceData, children_ages, number_paxs) {
     // Asumiendo que el servicio tiene precios diferenciados para niños y adultos
@@ -573,3 +562,18 @@ exports.getServicePrices = async (req, res) => {
     return calculatedPrices;
 
   }
+
+
+  function calculateExtraPrice(serviceData,number_paxs) {
+    const isPricePerPerson = serviceData.priceperson;
+    const price = serviceData.price
+    let total = 0
+    return number_paxs.map( numPax => {
+      if (!isPricePerPerson) {
+        total = price * numPax
+      }else {
+        return total
+      }
+      return total
+    });
+}
