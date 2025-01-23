@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const Contact = require('../../models/contact.schema'); // Cambia a tu modelo de contacto
+const Contact = require('../../models/contact.schema'); 
+const User = require('../../models/user.schema')
+const  { authenticate, authorize }= require('../../middlewares/auth');
 
 // Crear un nuevo contacto
 router.post('/', async (req, res) => {
@@ -13,15 +15,25 @@ router.post('/', async (req, res) => {
     }
 });
 
-// //Obtener todos los contactos
-// router.get('/', async (req, res) => {
-//     try {
-//         const contacts = await Contact.find();
-//         res.status(200).send(contacts);
-//     } catch (error) {
-//         res.status(500).send(error);
-//     }
-// });
+router.get('/', authenticate,authorize(['TD','admin','ventas']), async (req, res) => {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const allowedRoles = ['admin', 'ventas'];
+
+    if (allowedRoles.includes(userRole)) {
+      Contact.find()
+        .then(contacts => res.json(contacts))
+        .catch(err => res.status(500).json({ message: 'Error al obtener contactos', error: err }));
+    } else {
+       // Si el usuario no es admin, devuelve solo los contactos asignados a ese usuario
+       const user = await User.findById(userId).populate('contacts'); // Populate para cargar los contactos del usuario
+       if (!user) {
+         return res.status(404).json({ message: 'Usuario no encontrado' });
+       }
+       
+       return res.json(user.contacts);
+    }
+});
 
 // Obtener un contacto por ID
 router.get('/:id', async (req, res) => {
@@ -63,31 +75,6 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// router.get('/', async (req, res) => {
-//     try {
-//       const contacts = await Contact.find()
-//         .populate({
-//           path: 'cotizations',   // Nombre del campo que referencia a las cotizaciones
-//           select: 'name_version _id createdAt'    // Solo seleccionamos el campo createdAt de las cotizaciones
-//         });
-  
-//       // Ahora, transformamos los contactos para devolver solo el id y la fecha de creación de las cotizaciones
-//       const contactsWithCotizations = contacts.map(contact => {
-//         return {
-//           ...contact.toObject(), // Convertimos el documento a un objeto para manipularlo
-//           cotizations: contact.cotizations.map(cotization => ({
-//             id: cotization.quoter,     // Incluimos el id de la cotización
-//             name_version:cotization.name_version,
-//             createdAt: cotization.createdAt  // Incluimos la fecha de creación
-//           }))
-//         };
-//       });
-  
-//       res.status(200).json(contactsWithCotizations);  // Devolvemos los contactos con las cotizaciones
-//     } catch (error) {
-//       console.error(error);
-//       res.status(500).send(error);  // Error de servidor si ocurre algo mal
-//     }
-//   });
+
 
 module.exports = router;

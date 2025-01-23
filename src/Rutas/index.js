@@ -45,6 +45,7 @@ function routes(app){
     route.use('/extras',extrasRoute)
     route.use('/',authenticate,roleFilterMiddleware)
 
+
 }
 
 module.exports = routes;

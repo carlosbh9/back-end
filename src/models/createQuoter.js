@@ -1,8 +1,9 @@
+const Boom = require('@hapi/boom');
 const Quoter = require('../models/quoter.schema');
 const Contact = require('../models/contact.schema');
 const User = require('../models/user.schema')
 const  { authenticate, authorize }= require('../middlewares/auth')
-exports.createQuoter = async (req, res) => {
+exports.createQuoter = async (req, res,next) => {
   const { name_version, guest, FileCode, travelDate, totalNights,accomodations, number_paxs, travel_agent, exchange_rate, services, hotels, flights, operators, cruises, total_prices } = req.body;
 
 
@@ -61,12 +62,13 @@ exports.createQuoter = async (req, res) => {
     // Respondemos con la cotización creada
     res.status(201).json(contact);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al crear la cotización' });
+    if (error.isBoom) {
+      return next(error); 
+    }
+  
+    console.error('jajjajaja 1:', error);
+    next(Boom.internal('Error al crear la cotización', { originalError: error.message }));
   }
-
-
-
 };
 
 //module.exports = {createQuoter};

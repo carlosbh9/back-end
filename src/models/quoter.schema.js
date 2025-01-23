@@ -20,13 +20,15 @@ const DaySchema= new Schema({
     price_base: { type: Number}, // Precio base del servicio
     prices: [Number], // Array de precios adicionales
     notes: { type: String , default: ''}
-});
+}, { _id: false });
 
 const ServicesSchema = new Schema({
     day: { type: Number, required: true }, // Número de día (1, 2, 3, etc.)
     date: { type: String},
+    number_paxs: [Number],
+    children_ages: [Number],
     services: [DaySchema] // Array de servicios para cada día
-});
+}, { _id: false });
 
 const hotelSchema = new Schema({
     day: {type:Number},
