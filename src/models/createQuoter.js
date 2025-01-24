@@ -3,6 +3,7 @@ const Quoter = require('../models/quoter.schema');
 const Contact = require('../models/contact.schema');
 const User = require('../models/user.schema')
 const  { authenticate, authorize }= require('../middlewares/auth')
+
 exports.createQuoter = async (req, res,next) => {
   const { name_version, guest, FileCode, travelDate, totalNights,accomodations, number_paxs, travel_agent, exchange_rate, services, hotels, flights, operators, cruises, total_prices } = req.body;
 
