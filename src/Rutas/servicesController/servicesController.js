@@ -28,6 +28,7 @@ exports.getServicePrices = async (req, res) => {
             if (serviceData) {
               const calculatedPrice = calculateEntrancePrice(serviceData,children_ages,number_paxs);
               const calculatePricebase=calculateEntrancePrice(serviceData,[],[1]);
+              globalAlerts.push(...calculatedPrice.alerts);
               results.push({
                 city:service.city,
                 day: service.day,
@@ -65,7 +66,7 @@ exports.getServicePrices = async (req, res) => {
               serviceData = await ExperienceService.findById(service_id);
               if (serviceData) {
                 try {
-                const calculatedPrice = calculateExperiencePrice(serviceData,number_paxs);
+                const calculatedPrice = calculateExperiencePrice(serviceData,number_paxs,children_ages);
                 const calculatePricebase=calculateExperiencePrice(serviceData,[1]);
                 results.push({
                   city:service.city,
@@ -76,7 +77,6 @@ exports.getServicePrices = async (req, res) => {
                 });
               }catch (error) {
                 if (error instanceof RestrictionError) {
-                 
                   return res.status(400).json({ 
                     message: error.message 
                   });
@@ -251,7 +251,7 @@ exports.getServicePrices = async (req, res) => {
     // Inicializamos arrays para almacenar los precios de niños y adultos
     const childPrices = [];
     const adultPrices = [];
-   
+    const alerts = [];
  
     // Mapea cada cantidad en `number_paxs` para calcular el precio total correspondiente
     number_paxs.forEach(numPax => {
@@ -265,6 +265,7 @@ exports.getServicePrices = async (req, res) => {
         if (age <= maxChildAge && numChildren < numPax) {
           totalChildPrice += childPrice;  // Sumar precio para niños
           numChildren++;
+          alerts.push(`Niño con edad ${age} tomó precio de niño $ ${childPrice}.00`);
         }
       });
   
@@ -278,7 +279,7 @@ exports.getServicePrices = async (req, res) => {
     });
   
     // Retorna ambos arrays: precios de niños y precios de adultos
-    return { childPrices, adultPrices };
+    return { childPrices, adultPrices, alerts };
   }
   
   
@@ -287,7 +288,6 @@ exports.getServicePrices = async (req, res) => {
   function calculateExpeditionPrice(serviceData,number_paxs) {
       const pricePerPerson = serviceData.price_pp;
   
-      // Multiplica el precio por persona por cada valor en `number_paxs`
       return number_paxs.map(numPax => pricePerPerson * numPax);
   }
 
