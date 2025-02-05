@@ -9,6 +9,10 @@ const expeditionsSchema = new Schema({
     price_pp:{
         type: Number
     },
+    priceperson: { 
+        type: Boolean, 
+        required: true
+    },
     remarks: {
         type: String
     },

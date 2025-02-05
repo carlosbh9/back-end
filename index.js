@@ -1,6 +1,7 @@
 const exs = require("express");
 const routes = require('./src/Rutas');
 const connectDB = require('./db/db.js');
+const  morgan = require('morgan')
 const { mostrarError, boomManejaError, manejarError } = require('./src/middlewares/handleErrors.js');
 
 const cors = require('cors')
@@ -11,6 +12,7 @@ const apk = exs();
 const puerto = 3000;
 apk.use(exs.json());
 apk.use(cors());
+apk.use(morgan('combined'));
 connectDB();
 routes(apk);
 

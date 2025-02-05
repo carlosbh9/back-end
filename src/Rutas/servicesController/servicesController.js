@@ -287,8 +287,10 @@ exports.getServicePrices = async (req, res) => {
   
   function calculateExpeditionPrice(serviceData,number_paxs) {
       const pricePerPerson = serviceData.price_pp;
-  
-      return number_paxs.map(numPax => pricePerPerson * numPax);
+      const isPricePerPerson = serviceData.priceperson
+      return number_paxs.map(numPax => {
+        return isPricePerPerson ? pricePerPerson * numPax: pricePerPerson ;
+      });
   }
 
   function calculateExperiencePrice(serviceData,number_paxs,children_ages) {
