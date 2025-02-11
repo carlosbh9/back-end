@@ -6,7 +6,7 @@ const  { authenticate, authorize }= require('../middlewares/auth')
 
 exports.createQuoter = async (req, res,next) => {
   const { name_version, guest, FileCode, travelDate, totalNights,accomodations, number_paxs, travel_agent, exchange_rate, services, hotels, flights, operators, cruises, total_prices } = req.body;
-
+  const username = req.user.username
 
   try {
     // Obtener el usuario logueado desde la solicitud
@@ -18,7 +18,7 @@ exports.createQuoter = async (req, res,next) => {
       // Si el contacto no existe, lo creamos
       contact = new Contact({
         name: guest,
-
+        td_designed: username 
       });
 
       // Guardamos el contacto
@@ -38,6 +38,7 @@ exports.createQuoter = async (req, res,next) => {
     // Crear la primera versión de la cotización
     const quoter =new Quoter({
     contact_id: contact._id,
+    name_quoter: name_version,
     guest,
     FileCode,
     travelDate,

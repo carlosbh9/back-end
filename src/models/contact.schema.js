@@ -1,12 +1,7 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema
 
-const QUOTE_STATUSES = {
-  WIP: 'WIP',
-  HOLD: 'HOLD',
-  SOLD: 'SOLD',
-  LOST: 'LOST',
-};
+
 const quoter = new Schema({ 
   name_version: {type:String, default: 'version 1'}, 
   status: {
@@ -19,6 +14,7 @@ const quoter = new Schema({
 },{_id: false})
 const contactSchema = new Schema({
     name: { type: String, required: true },
+    td_designed: {type:String},
     email: { type: String },
     phone: { type: String },
     source: { type: String },

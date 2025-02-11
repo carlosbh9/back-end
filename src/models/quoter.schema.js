@@ -27,6 +27,7 @@ const ServicesSchema = new Schema({
     date: { type: String},
     number_paxs: [Number],
     children_ages: [Number],
+    isFixedLast: {type: Boolean, default: false},
     services: [DaySchema] // Array de servicios para cada día
 }, { _id: false });
 
@@ -96,6 +97,7 @@ const QUOTE_STATUSES = {
 
 const quoterSchema = new Schema({
     contact_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    name_quoter: {type: String},
     guest: {type:String},
     travelDate:{
         start:String,

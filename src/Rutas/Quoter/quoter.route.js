@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const Quoter = require('../../../src/models/quoter.schema');
 const Contact = require('../../models/contact.schema')
-// Crear una nueva cotización
+const User = require('../../models/user.schema')
+const Boom = require('@hapi/boom');
+//Crear una nueva cotización
 router.post('/', async (req, res) => {
     try {
         const quoter = new Quoter(req.body);
@@ -16,7 +18,7 @@ router.post('/', async (req, res) => {
 // Obtener todas las cotizaciones
 router.get('/', async (req, res) => {
     try {
-        const quoters = await Quoter.find();
+        const quoters = await Quoter.find().select('_id guest contact_id name_quoter');
         res.status(200).send(quoters);
     } catch (error) {
         res.status(500).send(error);
@@ -99,20 +101,72 @@ router.patch('/:id', async (req, res) => {
 
 
 //crear un nuevo item
-router.post('/:quoterId/quoterItems', async (req, res) => {
-    const {quoterId} = req.params;
-    const newItem = req.body;
-    try{
-        const item = await Quoter.findById(quoterId);
-        if(!item){
-            return res.status(404).send({message: 'Hotel not found'});
-        }
-        item.services.push(newItem);
-        await item.save();
-        res.status(201).send(newItem);
-    }catch(error){
-        res.status(400).send(error);
-    }
-});
+// router.post('/', async (req, res) => {
+//     const { name_version, guest, FileCode, travelDate, totalNights,accomodations, number_paxs, travel_agent, exchange_rate, services, hotels, flights, operators, cruises, total_prices } = req.body;
+
+
+//     try {
+//       // Obtener el usuario logueado desde la solicitud
+//       const userId = req.user.id;
+//       // Verificar si el contacto ya existe
+//       let contact = await Contact.findOne({ name: guest });  // Usamos el email como identificador único
+  
+//       if (!contact) {
+//         // Si el contacto no existe, lo creamos
+//         contact = new Contact({
+//           name: guest,
+  
+//         });
+  
+//         // Guardamos el contacto
+//         await contact.save();
+  
+  
+//         // Asociar el contacto al usuario logueado
+//         const user = await User.findById(userId);
+//         if (!user) {
+//           return res.status(404).json({ error: 'Usuario no encontrado' });
+//         }
+  
+//         user.contacts.push(contact._id); // Agregar el contacto al array de contactos del usuario
+//         await user.save();
+//       }
+  
+//       // Crear la primera versión de la cotización
+//       const quoter =new Quoter({
+//       contact_id: contact._id,
+//       guest,
+//       FileCode,
+//       travelDate,
+//       accomodations, 
+//       number_paxs,
+//       totalNights, 
+//       travel_agent, 
+//       exchange_rate, 
+//       services, 
+//       hotels, 
+//       flights, 
+//       operators, 
+//       cruises,
+//       total_prices,  // Usar los precios totales de la cotización inicial
+//       });
+//       await quoter.save();
+  
+  
+//       // Asociamos la cotización al contacto
+//       contact.cotizations.push({name_version: name_version , quoter_id: quoter._id});
+//       await contact.save();
+  
+//       // Respondemos con la cotización creada
+//       res.status(201).json(contact);
+//     } catch (error) {
+//       if (error.isBoom) {
+//         return next(error); 
+//       }
+    
+//       console.error('jajjajaja 1:', error);
+//       next(Boom.internal('Error al crear la cotización', { originalError: error.message }));
+//     }
+// });
 
 module.exports = router;
