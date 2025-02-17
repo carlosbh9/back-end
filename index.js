@@ -6,7 +6,7 @@ const { mostrarError, boomManejaError, manejarError } = require('./src/middlewar
 
 const cors = require('cors')
 //const { use } = require("./Rutas/Lotes/Lotes.route");
-
+const {authenticate} = require('./src/middlewares/auth.js')
 //const {mostrarError, manejarError, boomManejaError}= require('./middlewares/error.middleware');
 const apk = exs();
 const puerto = 3000;
@@ -19,7 +19,7 @@ routes(apk);
 // apk.use(mostrarError); // Registro del error
 // apk.use(boomManejaError); // Manejo de errores Boom
 apk.use(manejarError); // Manejo de errores genéricos
-
+apk.use(authenticate);
  
 apk.listen(puerto, () =>{
   console.log("puerto " + puerto + " activo")

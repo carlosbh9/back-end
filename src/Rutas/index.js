@@ -23,7 +23,7 @@ const roleFilterMiddleware = require('../middlewares/roleFilterMiddleware')
 function routes(app){
     const route = exs.Router();
     app.use("/api",route);
-    route.use("/",userRoute);
+    route.use("/",userRoute,authenticate);
   //  route.get("/",(req, res)=> res.send('Backend API Kuoda System'))
    // route.use(authenticate,authorize)
     route.use("/entrances",entranceRoutes);
@@ -39,11 +39,11 @@ function routes(app){
     route.use("/master",masterQuoter);
     route.post('/get-service-prices', servicesController.getServicePrices);
     route.post("/get-hotel-prices", hotelController.getServicePrices)
-    route.post('/createquoter',authenticate,createQuoter.createQuoter)
+    route.post('/createquoter',createQuoter.createQuoter)
     route.use('/contacts',contactRoute)
     route.use("/limagourmet",limaGourmet);
     route.use('/extras',extrasRoute)
-    route.use('/',authenticate,roleFilterMiddleware)
+    // route.use('/',authenticate,roleFilterMiddleware)
 
 
 }
