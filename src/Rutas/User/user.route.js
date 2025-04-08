@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../../../src/models/user.schema');
+const User = require('../../models/user.schema');
+const Role = require('../../models/roles.schema');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const JWT_SECRET = 'secretKey'
@@ -34,12 +35,17 @@ router.post('/login',  async (req, res) => {
     if (!user) return res.status(401).json({ error: 'usuario inválido' });
   
      const isPasswordValid = await bcrypt.compare(password, user.password);
-    // if (user.password != password) return res.status(401).json({ error: 'contraseña inválida' });
+  
      if (!isPasswordValid) return res.status(401).json({ error: 'Credenciales inválidas' });
   
-    const token = jwt.sign({ id: user._id , role: user.role, username: user.name,email:user.username }, process.env.JWT_SECRET);
+     const roleData = await Role.findOne({name: user.role}) 
+     const permissions = roleData ? roleData.permissions : [];
+
+     const token = jwt.sign({ id: user._id , role: user.role, username: user.name,email:user.username,permissions }, process.env.JWT_SECRET);
+
+    //const tokenPermission = jwt.sign({roles: permissions}, process.env.JWT_SECRET)
     //const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ token });
+    res.status(200).json({ token});
   });
 
   router.delete('/delete-user/:id', async (req, res) => {
@@ -53,10 +59,11 @@ router.post('/login',  async (req, res) => {
     }
 });
 
-router.put('/update-user/:id', async (req, res) => {
+router.patch('/update-user/:id', async (req, res) => {
     const { name } = req.body;
     try {
         const updatedUser = await User.findByIdAndUpdate(req.params.id,req.body, { new: true, select: '-password' });
+        //select: '-password' }
         if (!updatedUser) return res.status(404).json({ error: 'Usuario no encontrado' });
 
         res.status(200).json({ message: 'Usuario actualizado', usuario: updatedUser });
@@ -65,9 +72,10 @@ router.put('/update-user/:id', async (req, res) => {
     }
 });
 
-router.get('/all-users', authorize(['admin']), async (req, res) => {
+router.get('/all-users', async (req, res) => {
     try {
-        const users = await User.find({}, '-password'); // Excluir contraseñas de la respuesta
+        const users = await User.find(); // Excluir contraseñas de la respuesta
+      //  const users = await User.find({}, '-password'); 
         res.status(200).json(users);
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener usuarios', details: error });

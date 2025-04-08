@@ -6,7 +6,7 @@ const Restaurant = require('../../../src/models/Restaurant.schema');
 // Crear un nuevo restaurante
 router.post('/', async (req, res) => {
     try {
-        const restaurant = new Restaurant(req.body);
+        const restauerant = new Restaurant(req.body);
         await restaurant.save();
         res.status(201).send(restaurant);
     } catch (error) {
@@ -41,7 +41,6 @@ router.get('/:id', async (req, res) => {
 
 // Actualizar un restaurante por ID
 router.patch('/:id', async (req, res) => {
-    console.log(req.params)
     try {
         const restaurant = await Restaurant.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         if (!restaurant) {

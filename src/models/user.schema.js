@@ -4,7 +4,7 @@ const Schema = mongoose.Schema
 const userSchema = Schema({
   username: { type: String ,required: true, unique: true},
   password: { type: String },
-  role: { type: String, enum: ['admin', 'TD', 'OPE','ventas'], default: 'viewer' },
+  role: { type: String },
   image: { type: String, default: 'default.jpg' }, // URL de la imagen del usuario
   name: { type: String, required: true },
   contacts: [{ type: Schema.Types.ObjectId, ref: 'Contact' }] 
@@ -15,6 +15,6 @@ const userSchema = Schema({
 //   this.password = await bcrypt.hash(this.password, 10); // Encriptar contraseña
 //   next();
 // });
-
+//role: { type: String, enum: ['admin', 'TD', 'OPE','ventas'], default: 'viewer' },
 module.exports = mongoose.model('User', userSchema);
 // , required: true, unique: true

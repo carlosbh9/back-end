@@ -7,12 +7,12 @@ const { mostrarError, boomManejaError, manejarError } = require('./src/middlewar
 const cors = require('cors')
 //const { use } = require("./Rutas/Lotes/Lotes.route");
 const {authenticate} = require('./src/middlewares/auth.js')
-//const {mostrarError, manejarError, boomManejaError}= require('./middlewares/error.middleware');
+
 const apk = exs();
 const puerto = 3000;
 apk.use(exs.json());
 apk.use(cors());
-apk.use(morgan('combined'));
+apk.use(morgan('dev'));
 connectDB();
 routes(apk);
 

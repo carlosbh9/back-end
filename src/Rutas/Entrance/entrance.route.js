@@ -3,7 +3,7 @@ const router = express.Router();
 const Entrance = require('../../../src/models/entrances.schema');
 const  {authorize} = require('../../middlewares/auth');
 // Crear un nuevo restaurante
-router.post('/', authorize(['admin','ventas','OPE']), async (req, res) => {
+router.post('/',  async (req, res) => {
     try {
         const entrance = new Entrance(req.body);
         await entrance.save();
@@ -14,7 +14,7 @@ router.post('/', authorize(['admin','ventas','OPE']), async (req, res) => {
 });
 
 // Obtener todos los restaurantes
-router.get('/',authorize(['admin','ventas','OPE','TD']), async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const entrances = await Entrance.find();
         res.status(200).send(entrances);
@@ -24,7 +24,7 @@ router.get('/',authorize(['admin','ventas','OPE','TD']), async (req, res) => {
 });
 
 // Obtener un restaurante por ID
-router.get('/:id',authorize(['TD','admin','ventas','OPE']), async (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
         const entrance = await Entrance.findById(req.params.id);
         if (!entrance) {
@@ -37,7 +37,7 @@ router.get('/:id',authorize(['TD','admin','ventas','OPE']), async (req, res) => 
 });
 
 // Actualizar un restaurante por ID
-router.patch('/:id', authorize(['admin','ventas','OPE']),async (req, res) => {
+router.patch('/:id', async (req, res) => {
     console.log(req.params)
     try {
         const entrance = await Entrance.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
@@ -51,7 +51,7 @@ router.patch('/:id', authorize(['admin','ventas','OPE']),async (req, res) => {
 });
 
 // Eliminar un restaurante por ID
-router.delete('/:id',authorize(['admin','ventas','OPE']), async (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         const entrance = await Entrance.findByIdAndDelete(req.params.id);
         if (!entrance) {

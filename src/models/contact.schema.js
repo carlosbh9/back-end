@@ -13,7 +13,7 @@ const quoter = new Schema({
   quoter_id: {type: Schema.Types.ObjectId, ref: 'Quoter'} 
 },{_id: false})
 const contactSchema = new Schema({
-    name: { type: String, required: true },
+    name: { type: String, required: true, unique: true, trim: true },
     td_designed: {type:String},
     email: { type: String },
     phone: { type: String },

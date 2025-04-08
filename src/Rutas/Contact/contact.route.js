@@ -5,7 +5,7 @@ const User = require('../../models/user.schema')
 const  { authenticate, authorize }= require('../../middlewares/auth');
 
 // Crear un nuevo contacto
-router.post('/',authorize(['TD','admin','ventas']),async (req, res) => {
+router.post('/',async (req, res) => {
     try {
         const contact = new Contact(req.body);
         await contact.save();
@@ -15,7 +15,7 @@ router.post('/',authorize(['TD','admin','ventas']),async (req, res) => {
     }
 });
 // Ruta para obtener todas las cotizaciones de todos los contactos
-router.get('/all-cotizations',authorize(['TD','admin','ventas']), async (req, res) => {
+router.get('/all-cotizations', async (req, res) => {
     try {
         const cotizations = await Contact.aggregate([
             {
@@ -40,7 +40,7 @@ router.get('/all-cotizations',authorize(['TD','admin','ventas']), async (req, re
         res.status(500).send({ error: 'Error al obtener las cotizaciones' });
     }
 });
-router.get('/all-contacts', authenticate,authorize(['TD','admin','ventas']), async (req, res) => {
+router.get('/all-contacts', async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
     const allowedRoles = ['admin', 'ventas'];
@@ -59,7 +59,7 @@ router.get('/all-contacts', authenticate,authorize(['TD','admin','ventas']), asy
        return res.json(user.contacts);
     }
 });
-router.get('/', authenticate,authorize(['TD','admin','ventas']), async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
     try {
         const userId = req.user.id;
         const userRole = req.user.role;
@@ -124,7 +124,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Actualizar un contacto por ID
-router.patch('/:id',authorize(['TD','admin','ventas']), async (req, res) => {
+router.patch('/:id', async (req, res) => {
     console.log(req.params)
     try {
         const contact = await Contact.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
@@ -138,7 +138,7 @@ router.patch('/:id',authorize(['TD','admin','ventas']), async (req, res) => {
 });
 
 // Eliminar un contacto por ID
-router.delete('/:id', authorize(['TD','admin','ventas']), async (req, res) => {
+router.delete('/:id',  async (req, res) => {
     try {
         const contact = await Contact.findByIdAndDelete(req.params.id);
         if (!contact) {
