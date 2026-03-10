@@ -1,76 +1,99 @@
 const Boom = require('@hapi/boom');
 const Quoter = require('../models/quoter.schema');
 const Contact = require('../models/contact.schema');
-const User = require('../models/user.schema')
-const  { authenticate, authorize }= require('../middlewares/auth')
+const User = require('../models/user.schema');
 
-exports.createQuoter = async (req, res,next) => {
-  const { name_version, guest, FileCode, travelDate, totalNights,accomodations, number_paxs, travel_agent, exchange_rate, services, hotels, flights, operators, cruises, total_prices } = req.body;
-  const username = req.user.username
-
-  try {
-    // Obtener el usuario logueado desde la solicitud
-    const userId = req.user.id;
-    // Verificar si el contacto ya existe
-    let contact = await Contact.findOne({ name: guest });  // Usamos el email como identificador único
-
-    if (!contact) {
-      // Si el contacto no existe, lo creamos
-      contact = new Contact({
-        name: guest,
-        td_designed: username 
-      });
-
-      // Guardamos el contacto
-      await contact.save();
-
-
-      // Asociar el contacto al usuario logueado
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ error: 'Usuario no encontrado' });
-      }
-
-      user.contacts.push(contact._id); // Agregar el contacto al array de contactos del usuario
-      await user.save();
-    }
-
-    // Crear la primera versión de la cotización
-    const quoter =new Quoter({
-    contact_id: contact._id,
-    name_quoter: name_version,
+exports.createQuoter = async (req, res, next) => {
+  const {
+    name_version,
     guest,
     FileCode,
     travelDate,
-    accomodations, 
+    totalNights,
+    accomodations,
     number_paxs,
-    totalNights, 
-    travel_agent, 
-    exchange_rate, 
-    services, 
-    hotels, 
-    flights, 
-    operators, 
+    travel_agent,
+    exchange_rate,
+    services,
+    hotels,
+    flights,
+    operators,
     cruises,
-    total_prices,  // Usar los precios totales de la cotización inicial
+    total_prices,
+    destinations,
+    children_ages
+  } = req.body;
+
+  const username = req.user?.username;
+
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return next(Boom.unauthorized('Usuario no autenticado'));
+    }
+
+    const user = await User.findById(userId).select('_id');
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Busca por nombre; si no existe, crea con owner requerido por el esquema.
+    let contact = await Contact.findOne({ name: guest });
+
+    if (!contact) {
+      contact = new Contact({
+        name: guest,
+        td_designed: username,
+        owner: userId
+      });
+
+      await contact.save();
+    }
+    if (!contact.owner) {
+      contact.owner = userId;
+    }
+
+    const quoter = new Quoter({
+      contact_id: contact._id,
+      name_quoter: name_version,
+      guest,
+      FileCode,
+      travelDate,
+      accomodations,
+      destinations,
+      children_ages,
+      number_paxs,
+      totalNights,
+      travel_agent,
+      exchange_rate,
+      services,
+      hotels,
+      flights,
+      operators,
+      cruises,
+      total_prices
     });
+
     await quoter.save();
 
-
-    // Asociamos la cotización al contacto
-    contact.cotizations.push({name_version: name_version , quoter_id: quoter._id});
+    contact.cotizations.push({
+      name_version,
+      quoter_id: quoter._id,
+      createQuoter: quoter.createQuoter
+    });
     await contact.save();
 
-    // Respondemos con la cotización creada
-    res.status(201).json(contact);
+    return res.status(201).json(contact);
   } catch (error) {
-    if (error.isBoom) {
-      return next(error); 
+    if (error?.isBoom) {
+      return next(error);
     }
-  
-    console.error('jajjajaja 1:', error);
-    next(Boom.internal('Error al crear la cotización', { originalError: error.message }));
+
+    if (error?.name === 'ValidationError') {
+      return next(Boom.badRequest('Error de validacion al crear la cotizacion', { originalError: error.message }));
+    }
+
+    console.error('createQuoter error:', error);
+    return next(Boom.internal('Error al crear la cotizacion', { originalError: error.message }));
   }
 };
-
-//module.exports = {createQuoter};

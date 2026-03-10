@@ -6,8 +6,8 @@ const userSchema = Schema({
   password: { type: String },
   role: { type: String },
   image: { type: String, default: 'default.jpg' }, // URL de la imagen del usuario
-  name: { type: String, required: true },
-  contacts: [{ type: Schema.Types.ObjectId, ref: 'Contact' }] 
+  name: { type: String, required: true }
+ // contacts: [{ type: Schema.Types.ObjectId, ref: 'Contact' }] 
 },{ timestamps: true });
 
 // userSchema.pre('save', async function (next) {
@@ -16,5 +16,11 @@ const userSchema = Schema({
 //   next();
 // });
 //role: { type: String, enum: ['admin', 'TD', 'OPE','ventas'], default: 'viewer' },
+userSchema.virtual('contacts', {
+  ref:          'Contact',
+  localField:   '_id',
+  foreignField: 'owner'
+});
+
 module.exports = mongoose.model('User', userSchema);
 // , required: true, unique: true

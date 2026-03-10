@@ -20,11 +20,16 @@ const createQuoter = require('../models/createQuoter')
 const contactRoute = require('./Contact/contact.route')
 const extrasRoute = require('./Extra/extras.route')
 const roleRoute = require('./Roles/role.route')
+const publicBookingRoute = require('./PublicBooking/publicBooking.route')
+const serviceOrdersRoute = require('./ServiceOrders/serviceOrders.route')
+const serviceOrderTemplatesRoute = require('./ServiceOrders/serviceOrderTemplates.route')
 
 function routes(app){
     const route = exs.Router();
     app.use("/api",route);
-    route.use("/",userRoute,authenticate);
+    route.use("/",userRoute);
+    route.use("/", publicBookingRoute);
+    route.use(authenticate);
   //  route.get("/",(req, res)=> res.send('Backend API Kuoda System'))
    // route.use(authenticate,authorize)
     route.use("/entrances",entranceRoutes);
@@ -45,6 +50,8 @@ function routes(app){
     route.use("/limagourmet",limaGourmet);
     route.use('/extras',extrasRoute)
     route.use('/roles',roleRoute)
+    route.use('/service-orders', serviceOrdersRoute)
+    route.use('/service-order-templates', serviceOrderTemplatesRoute)
     // route.use('/',authenticate,roleFilterMiddleware)
 
 

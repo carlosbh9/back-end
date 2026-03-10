@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const JWT_SECRET = 'secretKey'
 require('dotenv').config()
-const  {authorize} = require('../../middlewares/auth');
+const  {authenticate, authorize} = require('../../middlewares/auth');
 const SALT_ROUNDS = 10;
 
 // Registro
@@ -48,7 +48,7 @@ router.post('/login',  async (req, res) => {
     res.status(200).json({ token});
   });
 
-  router.delete('/delete-user/:id', async (req, res) => {
+  router.delete('/delete-user/:id', authenticate, async (req, res) => {
     try {
         const deletedUser = await User.findByIdAndDelete(req.params.id);
         if (!deletedUser) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -59,7 +59,7 @@ router.post('/login',  async (req, res) => {
     }
 });
 
-router.patch('/update-user/:id', async (req, res) => {
+router.patch('/update-user/:id', authenticate, async (req, res) => {
     const { name } = req.body;
     try {
         const updatedUser = await User.findByIdAndUpdate(req.params.id,req.body, { new: true, select: '-password' });
@@ -72,7 +72,7 @@ router.patch('/update-user/:id', async (req, res) => {
     }
 });
 
-router.get('/all-users', async (req, res) => {
+router.get('/all-users', authenticate, async (req, res) => {
     try {
         const users = await User.find(); // Excluir contraseñas de la respuesta
       //  const users = await User.find({}, '-password'); 
