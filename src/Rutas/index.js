@@ -23,6 +23,8 @@ const roleRoute = require('./Roles/role.route')
 const publicBookingRoute = require('./PublicBooking/publicBooking.route')
 const serviceOrdersRoute = require('./ServiceOrders/serviceOrders.route')
 const serviceOrderTemplatesRoute = require('./ServiceOrders/serviceOrderTemplates.route')
+const tariffsRoute = require('./Tariffs/tariffs.route')
+const bookingFilesRoute = require('./BookingFiles/bookingFiles.route')
 
 function routes(app){
     const route = exs.Router();
@@ -50,8 +52,10 @@ function routes(app){
     route.use("/limagourmet",limaGourmet);
     route.use('/extras',extrasRoute)
     route.use('/roles',roleRoute)
+    route.use('/tariffs', tariffsRoute)
     route.use('/service-orders', serviceOrdersRoute)
     route.use('/service-order-templates', serviceOrderTemplatesRoute)
+    route.use('/booking-files', bookingFilesRoute)
     // route.use('/',authenticate,roleFilterMiddleware)
 
 

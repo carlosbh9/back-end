@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
+const Tariff = require('./tarifario.schema');
 
-const Schema = mongoose.Schema
+const Schema = mongoose.Schema;
 
 const expeditionsSchema = new Schema({
     name:{
@@ -19,4 +20,4 @@ const expeditionsSchema = new Schema({
     year: {type:String}
 },{timestamps: true});
 
-module.exports  = mongoose.model('Expeditions', expeditionsSchema);
+module.exports = mongoose.models.Expeditions || Tariff.discriminator('Expeditions', expeditionsSchema);

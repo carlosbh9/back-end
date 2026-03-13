@@ -170,6 +170,115 @@ class ServiceOrderService {
     return order.toObject();
   }
 
+  async updateFinancials({ id, payload = {}, userId = null, userRole = '' }) {
+    const order = await ServiceOrder.findById(id);
+    if (!order) return null;
+
+    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+      throw new Error('You do not have permissions to update financials for this order');
+    }
+
+    const previous = order.financials ? order.financials.toObject?.() || { ...order.financials } : {};
+    order.financials = {
+      ...(previous || {}),
+      ...(payload || {})
+    };
+    order.updatedBy = userId;
+    order.auditLogs.push({
+      action: 'FINANCIALS_UPDATED',
+      by: userId,
+      payload: { previous, next: order.financials }
+    });
+    await order.save();
+    return order.toObject();
+  }
+
+  async addAttachment({ id, payload = {}, userId = null, userRole = '' }) {
+    const order = await ServiceOrder.findById(id);
+    if (!order) return null;
+
+    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+      throw new Error('You do not have permissions to attach files to this order');
+    }
+
+    const attachmentId = payload.attachmentId
+      || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const attachment = {
+      attachmentId,
+      type: payload.type || 'OTHER',
+      fileName: String(payload.fileName || '').trim(),
+      url: payload.url || '',
+      storageKey: payload.storageKey || '',
+      contentType: payload.contentType || '',
+      notes: payload.notes || '',
+      uploadedAt: new Date(),
+      uploadedBy: userId || null
+    };
+
+    if (!attachment.fileName) {
+      throw new Error('fileName is required');
+    }
+
+    order.attachments.push(attachment);
+    order.updatedBy = userId;
+    order.auditLogs.push({
+      action: 'ATTACHMENT_ADDED',
+      by: userId,
+      payload: {
+        attachmentId,
+        type: attachment.type,
+        fileName: attachment.fileName
+      }
+    });
+    await order.save();
+    return order.toObject();
+  }
+
+  async removeAttachment({ id, attachmentId, userId = null, userRole = '' }) {
+    const order = await ServiceOrder.findById(id);
+    if (!order) return null;
+
+    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+      throw new Error('You do not have permissions to remove attachments from this order');
+    }
+
+    const previousCount = order.attachments.length;
+    order.attachments = order.attachments.filter((item) => item.attachmentId !== attachmentId);
+    if (order.attachments.length === previousCount) {
+      return null;
+    }
+
+    order.updatedBy = userId;
+    order.auditLogs.push({
+      action: 'ATTACHMENT_REMOVED',
+      by: userId,
+      payload: { attachmentId }
+    });
+    await order.save();
+    return order.toObject();
+  }
+
+  async canManageById(id, userRole = '') {
+    const order = await ServiceOrder.findById(id).select('_id area').lean();
+    if (!order) return null;
+    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+      throw new Error('You do not have permissions to manage this order');
+    }
+    return order;
+  }
+
+  async getAttachmentById(id, attachmentId, userRole = '') {
+    const order = await ServiceOrder.findById(id).lean();
+    if (!order) return null;
+    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+      throw new Error('You do not have permissions to manage this order');
+    }
+    const attachment = (order.attachments || []).find((item) => item.attachmentId === attachmentId);
+    if (!attachment) return { order, attachment: null };
+    return { order, attachment };
+  }
+
   async getKpisByArea() {
     const now = new Date();
     const [pending, inProgress, done, overdue] = await Promise.all([

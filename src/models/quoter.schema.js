@@ -89,15 +89,25 @@ const CruisesSchema = Schema({
 }, { _id: false })
 
 const QUOTE_STATUSES = {
-    WIP: 'WIP',
-    HOLD: 'HOLD',
+    DRAFT: 'DRAFT',
+    SENT: 'SENT',
+    APPROVED: 'APPROVED',
     SOLD: 'SOLD',
-    LOST: 'LOST',
+    CANCELLED: 'CANCELLED',
 };
 
 const quoterSchema = new Schema({
     contact_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     name_quoter: {type: String},
+    status: {
+        type: String,
+        enum: Object.values(QUOTE_STATUSES),
+        default: QUOTE_STATUSES.DRAFT,
+        index: true
+    },
+    soldAt: { type: Date, default: null },
+    soldBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    booking_file_id: { type: Schema.Types.ObjectId, ref: 'BookingFile', default: null },
     guest: {type:String},
     travelDate:{
         start:String,
@@ -129,3 +139,4 @@ const quoterSchema = new Schema({
 
 
 module.exports = mongoose.model('Quoter',quoterSchema);
+module.exports.QUOTE_STATUSES = QUOTE_STATUSES;

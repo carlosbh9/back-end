@@ -1,6 +1,7 @@
 const serviceOrderService = require('../../Services/service-orders/service-order.service');
 const serviceOrderOrchestrator = require('../../Services/service-orders/service-order.orchestrator');
 const Contact = require('../../models/contact.schema');
+const { createServiceOrderAttachmentPresign, createServiceOrderAttachmentReadPresign } = require('../../utils/serviceOrderUploads');
 
 class ServiceOrdersController {
   async list(req, res) {
@@ -90,6 +91,100 @@ class ServiceOrdersController {
     } catch (error) {
       const code = error.message?.includes('permissions') ? 403 : 400;
       return res.status(code).json({ message: 'Error updating checklist item', error: error.message });
+    }
+  }
+
+  async updateFinancials(req, res) {
+    try {
+      const item = await serviceOrderService.updateFinancials({
+        id: req.params.id,
+        payload: req.body || {},
+        userId: req.user?.id || null,
+        userRole: req.user?.role || ''
+      });
+      if (!item) return res.status(404).json({ message: 'Service order not found' });
+      return res.status(200).json(item);
+    } catch (error) {
+      const code = error.message?.includes('permissions') ? 403 : 400;
+      return res.status(code).json({ message: 'Error updating financials', error: error.message });
+    }
+  }
+
+  async addAttachment(req, res) {
+    try {
+      const item = await serviceOrderService.addAttachment({
+        id: req.params.id,
+        payload: req.body || {},
+        userId: req.user?.id || null,
+        userRole: req.user?.role || ''
+      });
+      if (!item) return res.status(404).json({ message: 'Service order not found' });
+      return res.status(200).json(item);
+    } catch (error) {
+      const code = error.message?.includes('permissions') ? 403 : 400;
+      return res.status(code).json({ message: 'Error adding attachment', error: error.message });
+    }
+  }
+
+  async removeAttachment(req, res) {
+    try {
+      const item = await serviceOrderService.removeAttachment({
+        id: req.params.id,
+        attachmentId: req.params.attachmentId,
+        userId: req.user?.id || null,
+        userRole: req.user?.role || ''
+      });
+      if (!item) return res.status(404).json({ message: 'Service order or attachment not found' });
+      return res.status(200).json(item);
+    } catch (error) {
+      const code = error.message?.includes('permissions') ? 403 : 400;
+      return res.status(code).json({ message: 'Error removing attachment', error: error.message });
+    }
+  }
+
+  async presignAttachment(req, res) {
+    try {
+      const { fileName, contentType, type = 'OTHER' } = req.body || {};
+      if (!fileName || !contentType) {
+        return res.status(400).json({ message: 'fileName and contentType are required' });
+      }
+
+      const order = await serviceOrderService.canManageById(req.params.id, req.user?.role || '');
+      if (!order) return res.status(404).json({ message: 'Service order not found' });
+
+      const result = await createServiceOrderAttachmentPresign({
+        orderId: req.params.id,
+        fileName,
+        contentType,
+        attachmentType: type
+      });
+
+      return res.status(200).json({ ok: true, ...result });
+    } catch (error) {
+      const code = error.message?.includes('permissions') ? 403 : (error.status || 400);
+      return res.status(code).json({ message: 'Error presigning attachment upload', error: error.message });
+    }
+  }
+
+  async openAttachment(req, res) {
+    try {
+      const result = await serviceOrderService.getAttachmentById(
+        req.params.id,
+        req.params.attachmentId,
+        req.user?.role || ''
+      );
+      if (!result) return res.status(404).json({ message: 'Service order not found' });
+      if (!result.attachment) return res.status(404).json({ message: 'Attachment not found' });
+
+      const response = await createServiceOrderAttachmentReadPresign({
+        key: result.attachment.storageKey,
+        fileName: result.attachment.fileName
+      });
+
+      return res.status(200).json({ ok: true, ...response });
+    } catch (error) {
+      const code = error.message?.includes('permissions') ? 403 : (error.status || 400);
+      return res.status(code).json({ message: 'Error opening attachment', error: error.message });
     }
   }
 

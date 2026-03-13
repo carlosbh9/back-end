@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Tariff = require('./tarifario.schema');
 
 const Schema = mongoose.Schema
 
@@ -47,4 +48,4 @@ const HotelSchema = new Schema({
     year: {type:String}    
 },{timestamps: true});
 
-module.exports = mongoose.model('Hotel', HotelSchema);
+module.exports = mongoose.models.Hotel || Tariff.discriminator('Hotel', HotelSchema);

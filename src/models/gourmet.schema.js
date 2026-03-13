@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Tariff = require('./tarifario.schema');
 
 const Schema = mongoose.Schema
 
@@ -24,6 +25,6 @@ const LimaGourmetSchema = new Schema({
     aprox_duration: {type: String},
     closing_date: [{ date: { type: String }, _id: false }],
     year: {type:String}
-},{timestamps: true})
+},{timestamps: true});
 
- module.exports = mongoose.model('LimaGourmet',LimaGourmetSchema);
+module.exports = mongoose.models.LimaGourmet || Tariff.discriminator('LimaGourmet', LimaGourmetSchema);

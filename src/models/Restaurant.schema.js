@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Tariff = require('./tarifario.schema');
 
 const Schema = mongoose.Schema;
 
@@ -92,7 +93,7 @@ const restaurantSchema = new Schema({
 //     }
 //   });
 
-module.exports = mongoose.model('Restaurant', restaurantSchema);
+module.exports = mongoose.models.Restaurant || Tariff.discriminator('Restaurant', restaurantSchema);
 
 
 // const resSchema = mongoose.model('Restaurant',restaurantSchema);

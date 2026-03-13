@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Tariff = require('./tarifario.schema');
 
 const Schema = mongoose.Schema
 const priceSchema = new Schema({
@@ -51,6 +52,4 @@ const trainSchema = new Schema({
     year: {type:String}
 },{timestamps: true});
 
-
-
-module.exports = mongoose.model('Train', trainSchema);
+module.exports = mongoose.models.Train || Tariff.discriminator('Train', trainSchema);

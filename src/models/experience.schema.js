@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Tariff = require('./tarifario.schema');
 
 const Schema = mongoose.Schema
 
@@ -53,4 +54,4 @@ const experienceSchema = new Schema({
     year: {type:String}
 },{timestamps: true});
 
-module.exports = mongoose.model('Experience', experienceSchema);
+module.exports = mongoose.models.Experience || Tariff.discriminator('Experience', experienceSchema);

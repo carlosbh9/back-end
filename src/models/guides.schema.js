@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Tariff = require('./tarifario.schema');
 
 const Schema = mongoose.Schema
 
@@ -19,5 +20,5 @@ const guideSchema = new Schema({
     year: {type:String}
 },{timestamps: true});
 
-module.exports = mongoose.model('Guides', guideSchema);
+module.exports = mongoose.models.Guides || Tariff.discriminator('Guides', guideSchema);
 //falta especificar consideraciones y importante info

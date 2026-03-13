@@ -1,14 +1,16 @@
 const mongoose = require('mongoose');
 
-const tarifarioSchema = new mongoose.Schema({
-    year: { type: Number, required: true },
-    categories: [{
-        categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Categories' },
-        services: [{
-            serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Services' },
-            price: { type: Number }
-        }]
-    }]
-}, { timestamps: true });
+const tarifarioSchema = new mongoose.Schema(
+  {
+    active: { type: Boolean, default: true, index: true }
+  },
+  {
+    timestamps: true,
+    discriminatorKey: 'type',
+    collection: 'tariffs'
+  }
+);
 
-module.exports = mongoose.model('Tarifarios', tarifarioSchema);
+tarifarioSchema.index({ type: 1, active: 1, createdAt: -1 });
+
+module.exports = mongoose.models.Tariff || mongoose.model('Tariff', tarifarioSchema);

@@ -1,172 +1,219 @@
 const express = require('express');
 const router = express.Router();
-const Quoter = require('../../../src/models/quoter.schema');
-const Contact = require('../../models/contact.schema')
-const User = require('../../models/user.schema')
 const Boom = require('@hapi/boom');
-//Crear una nueva cotización
+
+const Quoter = require('../../../src/models/quoter.schema');
+const Contact = require('../../models/contact.schema');
+const BookingFile = require('../../models/booking_file.schema');
+const serviceOrderOrchestrator = require('../../Services/service-orders/service-order.orchestrator');
+
+function normalizeFileCode(value = '') {
+  return String(value).trim().toUpperCase();
+}
+
+function buildBookingSnapshot(quoter) {
+  return {
+    services: quoter.services || [],
+    hotels: quoter.hotels || [],
+    flights: quoter.flights || [],
+    operators: quoter.operators || [],
+    cruises: quoter.cruises || [],
+    total_prices: quoter.total_prices || {}
+  };
+}
+
+function normalizeCotizationStatus(contact, soldQuoterId) {
+  if (!Array.isArray(contact.cotizations)) {
+    return;
+  }
+
+  contact.cotizations = contact.cotizations.map((item) => {
+    const source = item.toObject ? item.toObject() : item;
+    return {
+      ...source,
+      status: String(source.quoter_id) === String(soldQuoterId) ? 'SOLD' : 'WIP'
+    };
+  });
+}
+
 router.post('/', async (req, res) => {
-    try {
-        const quoter = new Quoter(req.body);
-        await quoter.save();
-        res.status(201).send(quoter);
-    } catch (error) {
-        res.status(400).send(error);
-    }
+  try {
+    const quoter = new Quoter(req.body);
+    await quoter.save();
+    res.status(201).send(quoter);
+  } catch (error) {
+    res.status(400).send(error);
+  }
 });
 
-// Obtener todas las cotizaciones
 router.get('/', async (req, res) => {
-    try {
-        const quoters = await Quoter.find().select('_id guest contact_id name_quoter');
-        res.status(200).send(quoters);
-    } catch (error) {
-        res.status(500).send(error);
-    }
+  try {
+    const quoters = await Quoter.find().select('_id guest contact_id name_quoter status booking_file_id soldAt');
+    res.status(200).send(quoters);
+  } catch (error) {
+    res.status(500).send(error);
+  }
 });
 
-//Obtener una cotización por ID
 router.get('/:id', async (req, res) => {
-    try {
-        const quoter = await Quoter.findById(req.params.id);
-        if (!quoter) {
-            return res.status(404).send(boomErrors.notFound('Error, ID no válida/encontrada'));
-        }
-        if (quoter.services && quoter.services.length > 0) {
-            quoter.services.sort((a, b) => a.day - b.day);
-        }
-        if (quoter.hotels && quoter.hotels.length > 0) {
-            quoter.hotels.sort((a, b) => a.day - b.day);
-        }
-
-        res.status(200).send(quoter);
-    } catch (error) {
-        res.status(500).send(error);
+  try {
+    const quoter = await Quoter.findById(req.params.id);
+    if (!quoter) {
+      return res.status(404).send(Boom.notFound('Error, ID no válida/encontrada').output.payload);
     }
-});
-// Eliminar una cotización por ID
-// router.delete('/:id', async (req, res) => {
-//     try {
-//         const quoter = await Quoter.findByIdAndDelete(req.params.id);
-//         if (!quoter) {
-//             return res.status(404).send();
-//         }
-//         res.status(200).send(quoter);
-//     } catch (error) {
-//         res.status(500).send(error);
-//     }
-// });
 
-// Eliminar una cotización por ID
+    if (quoter.services?.length) {
+      quoter.services.sort((a, b) => a.day - b.day);
+    }
+    if (quoter.hotels?.length) {
+      quoter.hotels.sort((a, b) => a.day - b.day);
+    }
+
+    res.status(200).send(quoter);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+router.post('/:id/confirm-sale', async (req, res) => {
+  try {
+    const requestedFileCode = normalizeFileCode(req.body?.fileCode);
+    const quoter = await Quoter.findById(req.params.id);
+    if (!quoter) {
+      return res.status(404).json({ message: 'Quoter not found' });
+    }
+
+    const contact = await Contact.findOne({ 'cotizations.quoter_id': quoter._id });
+    if (!contact) {
+      return res.status(400).json({ message: 'Contact not found for this quoter' });
+    }
+
+    const changedBy = req.user?.id || null;
+    const existingBookingFile = quoter.booking_file_id
+      ? await BookingFile.findById(quoter.booking_file_id)
+      : await BookingFile.findOne({ quoter_id: quoter._id });
+
+    const fileCode = requestedFileCode || existingBookingFile?.fileCode || '';
+    if (!fileCode) {
+      return res.status(400).json({ message: 'fileCode is required to confirm sale' });
+    }
+
+    const duplicatedFile = await BookingFile.findOne({
+      fileCode,
+      ...(existingBookingFile?._id ? { _id: { $ne: existingBookingFile._id } } : {})
+    }).select('_id fileCode');
+
+    if (duplicatedFile) {
+      return res.status(409).json({ message: `File code ${fileCode} is already in use` });
+    }
+
+    const bookingPayload = {
+      contact_id: contact._id,
+      fileCode,
+      guest: quoter.guest || contact.name || '',
+      travel_date_start: quoter.travelDate?.start || '',
+      travel_date_end: quoter.travelDate?.end || '',
+      destinations: quoter.destinations || [],
+      pax_summary: {
+        number_paxs: quoter.number_paxs || [],
+        children_ages: quoter.children_ages || []
+      },
+      sales_snapshot: {
+        quoter_id: quoter._id,
+        status: 'SOLD',
+        soldAt: new Date().toISOString(),
+        total_prices: quoter.total_prices || {}
+      },
+      itinerary_snapshot: buildBookingSnapshot(quoter),
+      updatedBy: changedBy
+    };
+
+    let bookingFile;
+    if (existingBookingFile) {
+      bookingFile = await BookingFile.findByIdAndUpdate(
+        existingBookingFile._id,
+        { $set: bookingPayload },
+        { new: true, runValidators: true }
+      );
+    } else {
+      bookingFile = await BookingFile.create({
+        quoter_id: quoter._id,
+        createdBy: changedBy,
+        ...bookingPayload
+      });
+    }
+
+    quoter.status = 'SOLD';
+    quoter.soldAt = quoter.soldAt || new Date();
+    quoter.soldBy = quoter.soldBy || changedBy;
+    quoter.booking_file_id = bookingFile._id;
+    await quoter.save();
+
+    contact.soldQuoterId = quoter._id;
+    contact.status = 'SOLD';
+    normalizeCotizationStatus(contact, quoter._id);
+    await contact.save();
+
+    const ordersResult = await serviceOrderOrchestrator.createOrdersForContactSold({
+      contactId: String(contact._id),
+      soldQuoterId: String(quoter._id),
+      changedBy
+    });
+
+    const serviceOrderIds = (ordersResult.orders || []).map((order) => order._id);
+    bookingFile = await BookingFile.findByIdAndUpdate(
+      bookingFile._id,
+      { $set: { service_order_ids: serviceOrderIds, updatedBy: changedBy } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      message: 'Sale confirmed successfully',
+      quoter,
+      bookingFile,
+      serviceOrders: {
+        businessEventId: ordersResult.businessEventId,
+        createdCount: ordersResult.createdCount
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error confirming sale', error: error.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
-    try {
-        // Eliminar la cotización de la base de datos
-        const quoter = await Quoter.findByIdAndDelete(req.params.id);
-        if (!quoter) {
-            return res.status(404).send({ message: 'Quoter not found' });
-        }
-
-        // Buscar el contacto que tiene esta cotización asociada
-        const contact = await Contact.findOneAndUpdate(
-            { 'cotizations.quoter_id': quoter._id },  // Buscar contacto que tiene esta cotización en el array 'cotizations'
-            { $pull: { cotizations:{ quoter_id: quoter._id } } },  // Eliminar la cotización del array 'cotizations'
-            { new: true } // Devuelve el contacto actualizado
-        );
-
-        if (!contact) {
-            return res.status(404).send({ message: 'Contact not found or no cotization to remove' });
-        }
-
-        // Responder con la cotización eliminada
-        res.status(200).send({ quoter, contact });
-    } catch (error) {
-        res.status(500).send({ message: 'Error deleting quoter and updating contact', error });
+  try {
+    const quoter = await Quoter.findByIdAndDelete(req.params.id);
+    if (!quoter) {
+      return res.status(404).send({ message: 'Quoter not found' });
     }
+
+    const contact = await Contact.findOneAndUpdate(
+      { 'cotizations.quoter_id': quoter._id },
+      { $pull: { cotizations: { quoter_id: quoter._id } } },
+      { new: true }
+    );
+
+    if (!contact) {
+      return res.status(404).send({ message: 'Contact not found or no cotization to remove' });
+    }
+
+    res.status(200).send({ quoter, contact });
+  } catch (error) {
+    res.status(500).send({ message: 'Error deleting quoter and updating contact', error });
+  }
 });
 
-
-// Actualizar una cotización por ID
 router.patch('/:id', async (req, res) => {
-    try {
-        const quoter = await Quoter.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-        if (!quoter) {
-            return res.status(404).send();
-        }
-        res.status(200).send(quoter);
-    } catch (error) {
-        res.status(400).send(error);
+  try {
+    const quoter = await Quoter.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    if (!quoter) {
+      return res.status(404).send();
     }
+    res.status(200).send(quoter);
+  } catch (error) {
+    res.status(400).send(error);
+  }
 });
-
-
-
-//crear un nuevo item
-// router.post('/', async (req, res) => {
-//     const { name_version, guest, FileCode, travelDate, totalNights,accomodations, number_paxs, travel_agent, exchange_rate, services, hotels, flights, operators, cruises, total_prices } = req.body;
-
-
-//     try {
-//       // Obtener el usuario logueado desde la solicitud
-//       const userId = req.user.id;
-//       // Verificar si el contacto ya existe
-//       let contact = await Contact.findOne({ name: guest });  // Usamos el email como identificador único
-  
-//       if (!contact) {
-//         // Si el contacto no existe, lo creamos
-//         contact = new Contact({
-//           name: guest,
-  
-//         });
-  
-//         // Guardamos el contacto
-//         await contact.save();
-  
-  
-//         // Asociar el contacto al usuario logueado
-//         const user = await User.findById(userId);
-//         if (!user) {
-//           return res.status(404).json({ error: 'Usuario no encontrado' });
-//         }
-  
-//         user.contacts.push(contact._id); // Agregar el contacto al array de contactos del usuario
-//         await user.save();
-//       }
-  
-//       // Crear la primera versión de la cotización
-//       const quoter =new Quoter({
-//       contact_id: contact._id,
-//       guest,
-//       FileCode,
-//       travelDate,
-//       accomodations, 
-//       number_paxs,
-//       totalNights, 
-//       travel_agent, 
-//       exchange_rate, 
-//       services, 
-//       hotels, 
-//       flights, 
-//       operators, 
-//       cruises,
-//       total_prices,  // Usar los precios totales de la cotización inicial
-//       });
-//       await quoter.save();
-  
-  
-//       // Asociamos la cotización al contacto
-//       contact.cotizations.push({name_version: name_version , quoter_id: quoter._id});
-//       await contact.save();
-  
-//       // Respondemos con la cotización creada
-//       res.status(201).json(contact);
-//     } catch (error) {
-//       if (error.isBoom) {
-//         return next(error); 
-//       }
-    
-//       console.error('jajjajaja 1:', error);
-//       next(Boom.internal('Error al crear la cotización', { originalError: error.message }));
-//     }
-// });
 
 module.exports = router;

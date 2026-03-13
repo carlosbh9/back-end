@@ -2,7 +2,12 @@ const express = require('express');
 const crypto = require('crypto');
 const PublicBookingLink = require('../../models/publicBookingLink.schema');
 const { authenticate } = require('../../middlewares/auth');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const {
+  S3Client,
+  PutObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectsCommand
+} = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const multer = require('multer');
 const User = require('../../models/user.schema');
@@ -88,7 +93,12 @@ function isLinkActive(link) {
   return true;
 }
 
-function buildPassportKey({ clientId, token, guestIndex, originalName }) {
+function buildBookingAssetsPrefix({ clientId, token }) {
+  const safeClientId = normalizeClientId(clientId) || 'no-client';
+  return `public-booking/${safeClientId}/${token}`;
+}
+
+function buildPassportKey({ clientId, token, originalName }) {
   const ext = path.extname(originalName || '').toLowerCase();
   if (!ALLOWED_EXT.has(ext)) {
     const err = new Error(`Invalid file extension: ${ext}`);
@@ -96,9 +106,36 @@ function buildPassportKey({ clientId, token, guestIndex, originalName }) {
     throw err;
   }
 
-  const safeClientId = normalizeClientId(clientId) || 'no-client';
   const uuid = crypto.randomUUID();
-  return `private/public-booking/${safeClientId}/token-${token}/guest-${guestIndex}/passport/${uuid}${ext}`;
+  return `${buildBookingAssetsPrefix({ clientId, token })}/${uuid}${ext}`;
+}
+
+async function deleteS3Prefix(prefix) {
+  if (!PASSPORT_BUCKET || !prefix) return;
+
+  let continuationToken;
+
+  do {
+    const listed = await s3.send(new ListObjectsV2Command({
+      Bucket: PASSPORT_BUCKET,
+      Prefix: prefix,
+      ContinuationToken: continuationToken
+    }));
+
+    const objects = (listed.Contents || [])
+      .map((item) => item.Key)
+      .filter(Boolean)
+      .map((Key) => ({ Key }));
+
+    if (objects.length > 0) {
+      await s3.send(new DeleteObjectsCommand({
+        Bucket: PASSPORT_BUCKET,
+        Delete: { Objects: objects, Quiet: true }
+      }));
+    }
+
+    continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+  } while (continuationToken);
 }
 
 
@@ -181,10 +218,7 @@ router.post('/public-booking-links/:token/presign-passport', async (req, res) =>
       return res.status(410).json({ ok: false, message: 'Expired or used link' });
     }
 
-    const { guestIndex, fileName, contentType } = req.body || {};
-    if (guestIndex === undefined || guestIndex === null) {
-      return res.status(400).json({ ok: false, message: 'guestIndex is required' });
-    }
+    const { fileName, contentType } = req.body || {};
     if (!fileName || !contentType) {
       return res.status(400).json({ ok: false, message: 'fileName and contentType are required' });
     }
@@ -195,7 +229,6 @@ router.post('/public-booking-links/:token/presign-passport', async (req, res) =>
     const key = buildPassportKey({
       clientId: link.clientId,
       token,
-      guestIndex: Number(guestIndex),
       originalName: fileName
     });
 
@@ -342,7 +375,6 @@ router.post('/public-booking-links/:token/submit', upload.any(), async (req, res
       const passportKey = buildPassportKey({
         clientId: link.clientId,
         token,
-        guestIndex: i,
         originalName: file.originalname
       });
 
@@ -528,11 +560,15 @@ router.delete('/public-booking-links/:token', authenticate, async (req, res) => 
   try {
     const { token } = req.params;
     const tokenHash = hashToken(token);
-
-    const deleted = await PublicBookingLink.findOneAndDelete({ tokenHash });
-    if (!deleted) {
+    const existing = await PublicBookingLink.findOne({ tokenHash }).select('clientId').lean();
+    if (!existing) {
       return res.status(404).json({ ok: false, message: 'Link not found' });
     }
+
+    const assetsPrefix = buildBookingAssetsPrefix({ clientId: existing.clientId, token });
+
+    await deleteS3Prefix(assetsPrefix);
+    await PublicBookingLink.deleteOne({ tokenHash });
 
     return res.status(200).json({ ok: true, message: 'Link deleted successfully' });
   } catch (error) {
@@ -542,4 +578,3 @@ router.delete('/public-booking-links/:token', authenticate, async (req, res) => 
 });
 
 module.exports = router;
-

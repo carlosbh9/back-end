@@ -10,5 +10,10 @@ router.get('/:id', (req, res) => controller.getById(req, res));
 router.patch('/:id/status', (req, res) => controller.updateStatus(req, res));
 router.patch('/:id/assign', (req, res) => controller.assign(req, res));
 router.patch('/:id/checklist/:itemId', (req, res) => controller.updateChecklistItem(req, res));
+router.patch('/:id/financials', (req, res) => controller.updateFinancials(req, res));
+router.post('/:id/attachments/presign', (req, res) => controller.presignAttachment(req, res));
+router.post('/:id/attachments', (req, res) => controller.addAttachment(req, res));
+router.get('/:id/attachments/:attachmentId/open', (req, res) => controller.openAttachment(req, res));
+router.delete('/:id/attachments/:attachmentId', (req, res) => controller.removeAttachment(req, res));
 
 module.exports = router;
