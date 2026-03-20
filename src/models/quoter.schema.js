@@ -15,66 +15,66 @@ const Schema = mongoose.Schema
 
 const DaySchema= new Schema({
     
-    city: { type: String},
-    name_service: { type: String },
-    price_base: { type: Number}, // Precio base del servicio
-    prices: [Number], // Array de precios adicionales
-    notes: { type: String , default: ''}
+  city: { type: String},
+  name_service: { type: String },
+  type: { type: String, default: '' },
+  price_base: { type: Number}, // Precio base del servicio
+  price: { type: Number, default: 0 },
+  notes: { type: String , default: ''}
 }, { _id: false });
 
 const ServicesSchema = new Schema({
-    day: { type: Number, required: true }, // Número de día (1, 2, 3, etc.)
-    date: { type: String},
-    number_paxs: [Number],
-    children_ages: [Number],
-    isFixedLast: {type: Boolean, default: false},
-    services: [DaySchema] // Array de servicios para cada día
+  day: { type: Number, required: true }, // Número de día (1, 2, 3, etc.)
+  date: { type: String},
+  number_paxs: { type: Number, default: 0 },
+  children_ages: [Number],
+  isFixedLast: {type: Boolean, default: false},
+  services: [DaySchema] // Array de servicios para cada día
 }, { _id: false });
 
 const hotelSchema = new Schema({
-    day: {type:Number},
-    date:{type: String},
-    city: {type: String},
-    name_hotel:{type: String},
-    price_base:{type: Number, defaulf: 0},
-    prices:[Number],
-    accomodatios_category:{type:String},
-    notes: {type: String}
+  day: {type:Number},
+  date:{type: String},
+  city: {type: String},
+  name_hotel:{type: String},
+  price_base:{type: Number, default: 0},
+  price:{type: Number, default: 0},
+  accomodatios_category:{type:String},
+  notes: {type: String}
 }, { _id: false })
  
 
 
 const flightsSchema = new Schema({
-    date: {type: String},
-    route: {type:String},
-    price_conf: {type: Number},
-    prices:[Number],
-    total_prices:[Number],
-    notes: {type:String}
+  date: {type: String},
+  route: {type:String},
+  price_conf: {type: Number},
+  price:{type: Number, default: 0},
+  notes: {type:String}
 }, { _id: false })
 
 const totalPrices = new Schema({
-    total_cost:[Number],
-    external_utility:[Number],
-    cost_external_taxes:[Number],
-    total_cost_external:[Number],
-    total_hoteles:[Number],
-    total_services:[Number],
-    total_ext_operator:[Number],
-    total_ext_cruises:[Number],
-    total_flights:[Number],
-    subtotal: [Number],
-    cost_transfers:[Number],
-    final_cost:[Number],
-    price_pp:[Number],
-    porcentajeTD: {type: Number}
+    total_cost:{type: Number, default: 0},
+    external_utility:{type: Number, default: 0},
+    cost_external_taxes:{type: Number, default: 0},
+    total_cost_external:{type: Number, default: 0},
+    total_hoteles:{type: Number, default: 0},
+    total_services:{type: Number, default: 0},
+    total_ext_operator:{type: Number, default: 0},
+    total_ext_cruises:{type: Number, default: 0},
+    total_flights:{type: Number, default: 0},
+    subtotal: {type: Number, default: 0},
+    cost_transfers:{type: Number, default: 0},
+    final_cost:{type: Number, default: 0},
+    price_pp:{type: Number, default: 0},
+    porcentajeTD: {type: Number, default: 0}
 
 },{_id:false})
 const OperatorsSchema = Schema({
     country: {type: String},
     name_operator: {type: String},
     city: {type: String},
-    prices:[Number],   
+    price:{type: Number, default: 0},   
     notes: {type: String}
    
 }, { _id: false })
@@ -83,7 +83,7 @@ const CruisesSchema = Schema({
     name: {type: String},
     operator: {type: String},
     price_conf: {type: Number},
-    prices:[Number],   
+    price:{type: Number, default: 0},   
     notes: {type: String}
    
 }, { _id: false })
@@ -116,7 +116,7 @@ const quoterSchema = new Schema({
     accomodations: {type: String},
     destinations: [String],
     totalNights: {type:String},
-    number_paxs:[Number],
+    number_paxs:{type: Number, default: 0},
     children_ages: [Number],
     travel_agent:{type:String},
     exchange_rate:{type:String},

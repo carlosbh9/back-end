@@ -46,9 +46,8 @@ class ServiceOrderOrchestrator {
     };
 
     (quoterDoc?.hotels || []).forEach((hotel, index) => {
-      const prices = Array.isArray(hotel?.prices) ? hotel.prices : [];
       const priceBase = this.toNumber(hotel?.price_base);
-      const estimatedTotal = this.sumNumbers(prices) || priceBase;
+      const estimatedTotal = this.toNumber(hotel?.price) || priceBase;
       items.push({
         type: 'HOTEL',
         lineKey: `hotel-${index}-${this.slug(hotel?.name_hotel)}`,
@@ -62,7 +61,7 @@ class ServiceOrderOrchestrator {
           name: hotel?.name_hotel || '',
           accommodationCategory: hotel?.accomodatios_category || '',
           priceBase,
-          prices,
+          price: estimatedTotal,
           estimatedTotal,
           notes: hotel?.notes || ''
         }
@@ -73,9 +72,8 @@ class ServiceOrderOrchestrator {
       const day = serviceGroup?.day ?? null;
       const date = serviceGroup?.date || '';
       (serviceGroup?.services || []).forEach((serviceLine, lineIndex) => {
-        const prices = Array.isArray(serviceLine?.prices) ? serviceLine.prices : [];
         const priceBase = this.toNumber(serviceLine?.price_base);
-        const estimatedTotal = this.sumNumbers(prices) || priceBase;
+        const estimatedTotal = this.toNumber(serviceLine?.price) || priceBase;
         items.push({
           type: 'TOUR',
           lineKey: `service-${groupIndex}-${lineIndex}-${this.slug(serviceLine?.name_service)}`,
@@ -89,7 +87,7 @@ class ServiceOrderOrchestrator {
             city: serviceLine?.city || '',
             name: serviceLine?.name_service || '',
             priceBase,
-            prices,
+            price: estimatedTotal,
             estimatedTotal,
             notes: serviceLine?.notes || ''
           }
@@ -98,9 +96,8 @@ class ServiceOrderOrchestrator {
     });
 
     (quoterDoc?.flights || []).forEach((flight, index) => {
-      const prices = Array.isArray(flight?.prices) ? flight.prices : [];
       const priceConf = this.toNumber(flight?.price_conf);
-      const estimatedTotal = this.sumNumbers(prices) || priceConf;
+      const estimatedTotal = this.toNumber(flight?.price) || priceConf;
       items.push({
         type: 'TRANSPORT',
         lineKey: `flight-${index}-${this.slug(flight?.route)}`,
@@ -111,7 +108,7 @@ class ServiceOrderOrchestrator {
           date: flight?.date || '',
           route: flight?.route || '',
           priceBase: priceConf,
-          prices,
+          price: estimatedTotal,
           estimatedTotal,
           notes: flight?.notes || ''
         }
@@ -119,8 +116,7 @@ class ServiceOrderOrchestrator {
     });
 
     (quoterDoc?.operators || []).forEach((operator, index) => {
-      const prices = Array.isArray(operator?.prices) ? operator.prices : [];
-      const estimatedTotal = this.sumNumbers(prices);
+      const estimatedTotal = this.toNumber(operator?.price);
       items.push({
         type: 'TOUR',
         lineKey: `operator-${index}-${this.slug(operator?.name_operator)}`,
@@ -131,7 +127,7 @@ class ServiceOrderOrchestrator {
           country: operator?.country || '',
           city: operator?.city || '',
           name: operator?.name_operator || '',
-          prices,
+          price: estimatedTotal,
           estimatedTotal,
           notes: operator?.notes || ''
         }
@@ -139,9 +135,8 @@ class ServiceOrderOrchestrator {
     });
 
     (quoterDoc?.cruises || []).forEach((cruise, index) => {
-      const prices = Array.isArray(cruise?.prices) ? cruise.prices : [];
       const priceConf = this.toNumber(cruise?.price_conf);
-      const estimatedTotal = this.sumNumbers(prices) || priceConf;
+      const estimatedTotal = this.toNumber(cruise?.price) || priceConf;
       items.push({
         type: 'TICKETS',
         lineKey: `cruise-${index}-${this.slug(cruise?.name)}`,
@@ -152,7 +147,7 @@ class ServiceOrderOrchestrator {
           name: cruise?.name || '',
           operator: cruise?.operator || '',
           priceBase: priceConf,
-          prices,
+          price: estimatedTotal,
           estimatedTotal,
           notes: cruise?.notes || ''
         }
@@ -167,7 +162,7 @@ class ServiceOrderOrchestrator {
         ...baseSnapshot,
         category: 'financial',
         name: 'Prepayment control',
-        estimatedTotal: this.toNumber(quoterDoc?.total_prices?.final_cost?.[0]),
+        estimatedTotal: this.toNumber(quoterDoc?.total_prices?.final_cost),
         notes: 'Generated automatically from sold quote'
       }
     });
@@ -178,7 +173,7 @@ class ServiceOrderOrchestrator {
         ...baseSnapshot,
         category: 'financial',
         name: 'Invoice control',
-        estimatedTotal: this.toNumber(quoterDoc?.total_prices?.final_cost?.[0]),
+        estimatedTotal: this.toNumber(quoterDoc?.total_prices?.final_cost),
         notes: 'Generated automatically from sold quote'
       }
     });

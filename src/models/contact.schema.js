@@ -4,6 +4,11 @@ const Schema = mongoose.Schema
 
 const quoter = new Schema({ 
   name_version: {type:String, default: 'version 1'}, 
+  quoter_model: {
+    type: String,
+    enum: ['v1', 'v2'],
+    default: 'v1'
+  },
   status: {
     type: String,
     enum:['WIP','HOLD','SOLD','LOST'], // Usar los valores de las constantes

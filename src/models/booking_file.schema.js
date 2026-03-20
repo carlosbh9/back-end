@@ -32,7 +32,7 @@ const bookingFileSchema = new Schema({
   travel_date_end: { type: String, default: '' },
   destinations: { type: [String], default: [] },
   pax_summary: {
-    number_paxs: { type: [Number], default: [] },
+    number_paxs: { type: Number, default: 0 },
     children_ages: { type: [Number], default: [] }
   },
   sales_snapshot: { type: Schema.Types.Mixed, required: true },

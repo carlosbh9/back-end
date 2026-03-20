@@ -1,30 +1,16 @@
 const exs = require("express");
 
-const entranceRoutes = require ("./Entrance/entrance.route")
-const expeditionRoute = require("./Expedition/expedition.route")
-const experienceRoute = require("./Experience/experience.route")
-const guideRoute = require("./Guide/guide.route")
-const hotelRoute = require("./Hotel/hotel.route")
-const operatorRoute = require("./Operator/operator.route")
-const restaurantRoutes = require ("./Restaurant/restaurant.route")
-const trainRoutes = require ("./Train/train.route")
-const transportRoute = require("./Transport/transport.route")
-const quoterRoute = require("./Quoter/quoter.route")
-const masterQuoter = require("./masterQuoter/master_quoter.route")
-const limaGourmet = require('./Gourmet/limaGourmet.route')
-const servicesController = require('./servicesController/servicesController');
-const hotelController = require('./servicesController/hotelController');
 const userRoute = require('./User/user.route')
 const {authenticate, authorize} = require('../middlewares/auth')
-const createQuoter = require('../models/createQuoter')
 const contactRoute = require('./Contact/contact.route')
-const extrasRoute = require('./Extra/extras.route')
 const roleRoute = require('./Roles/role.route')
 const publicBookingRoute = require('./PublicBooking/publicBooking.route')
 const serviceOrdersRoute = require('./ServiceOrders/serviceOrders.route')
 const serviceOrderTemplatesRoute = require('./ServiceOrders/serviceOrderTemplates.route')
-const tariffsRoute = require('./Tariffs/tariffs.route')
 const bookingFilesRoute = require('./BookingFiles/bookingFiles.route')
+const tariffV2Route = require('../modules/tariff-v2/api/tariff-v2.routes')
+const masterQuoterV2Route = require('../modules/master-quoter-v2/api/master-quoter-v2.routes')
+const quoterV2Route = require('../modules/quoter-v2/api/quoter-v2.routes')
 
 function routes(app){
     const route = exs.Router();
@@ -34,25 +20,11 @@ function routes(app){
     route.use(authenticate);
   //  route.get("/",(req, res)=> res.send('Backend API Kuoda System'))
    // route.use(authenticate,authorize)
-    route.use("/entrances",entranceRoutes);
-    route.use("/expeditions",expeditionRoute);
-    route.use("/experiences",experienceRoute);
-    route.use("/guides",guideRoute);
-    route.use("/hotels",hotelRoute);
-    route.use("/operators",operatorRoute);
-    route.use('/restaurants', restaurantRoutes);
-    route.use("/trains",trainRoutes);
-    route.use("/transports",transportRoute);
-    route.use("/quoter",quoterRoute);
-    route.use("/master",masterQuoter);
-    route.post('/get-service-prices', servicesController.getServicePrices);
-    route.post("/get-hotel-prices", hotelController.getServicePrices)
-    route.post('/createquoter',createQuoter.createQuoter)
     route.use('/contacts',contactRoute)
-    route.use("/limagourmet",limaGourmet);
-    route.use('/extras',extrasRoute)
     route.use('/roles',roleRoute)
-    route.use('/tariffs', tariffsRoute)
+    route.use('/tariff-v2', tariffV2Route)
+    route.use('/master-quoter-v2', masterQuoterV2Route)
+    route.use('/quoter-v2', quoterV2Route)
     route.use('/service-orders', serviceOrdersRoute)
     route.use('/service-order-templates', serviceOrderTemplatesRoute)
     route.use('/booking-files', bookingFilesRoute)
