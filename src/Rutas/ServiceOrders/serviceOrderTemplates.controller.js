@@ -22,7 +22,7 @@ class ServiceOrderTemplatesController {
 
   async upsert(req, res) {
     try {
-      const item = await templateService.upsertByType(req.body || {});
+      const item = await templateService.upsert(req.body || {});
       return res.status(200).json(item);
     } catch (error) {
       return res.status(400).json({ message: 'Error upserting template', error: error.message });

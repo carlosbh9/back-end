@@ -91,10 +91,10 @@ const TariffValiditySchema = new Schema({
   closingDates: { type: [ClosingDateRuleSchema], default: [] },
 }, { _id: false });
 
-const TariffLegacyRefSchema = new Schema({
-  collection: { type: String, trim: true },
-  legacyId: { type: String, trim: true },
-}, { _id: false });
+// const TariffLegacyRefSchema = new Schema({
+//   collection: { type: String, trim: true },
+//   legacyId: { type: String, trim: true },
+// }, { _id: false });
 
 const TariffPricingSchema = new Schema({
   mode: { type: String, enum: PRICING_MODES, required: true },
@@ -149,7 +149,7 @@ const TariffItemV2Schema = new Schema({
   childPolicies: { type: [ChildPolicySchema], default: [] },
   validity: { type: TariffValiditySchema, required: true },
   notes: { type: String, trim: true },
-  legacy: { type: TariffLegacyRefSchema, default: undefined },
+  //legacy: { type: TariffLegacyRefSchema, default: undefined },
   metadata: { type: Schema.Types.Mixed, default: undefined },
 }, {
   collection: 'tariff_items_v2',

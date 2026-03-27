@@ -1,4 +1,5 @@
 const ServiceOrder = require('../../models/service_order.schema');
+const bookingFileSummaryService = require('../booking-files/booking-file-summary.service');
 
 const ALLOWED_STATUS_TRANSITIONS = {
   // Operational flow allows back-and-forth while work is active.
@@ -19,6 +20,37 @@ const ROLE_ALLOWED_AREAS = {
 };
 
 class ServiceOrderService {
+  async refreshFileSummary(order, userId = null) {
+    if (!order?.file_id) return;
+    await bookingFileSummaryService.recalculateFileSummary(String(order.file_id), { updatedBy: userId });
+  }
+
+  getActiveStage(order) {
+    return (order?.stagesSnapshot || []).find((stage) => stage.status === 'ACTIVE') || null;
+  }
+
+  syncLegacyChecklistWithActiveStage(order) {
+    const activeStage = this.getActiveStage(order);
+    order.checklist = activeStage?.checklist || [];
+    order.currentStageCode = activeStage?.code || '';
+    order.currentStageLabel = activeStage?.label || '';
+  }
+
+  getStageByCode(order, stageCode) {
+    return (order?.stagesSnapshot || []).find((stage) => stage.code === stageCode) || null;
+  }
+
+  hasPendingRequiredChecklist(stage) {
+    return (stage?.checklist || []).some((item) => item.required !== false && item.status !== 'DONE');
+  }
+
+  hasMissingRequiredAttachments(order, stage) {
+    const required = Array.isArray(stage?.requiredAttachments) ? stage.requiredAttachments : [];
+    if (!required.length) return [];
+    const present = new Set((order?.attachments || []).map((item) => item.type));
+    return required.filter((type) => !present.has(type));
+  }
+
   canManageOrderByRole(order, userRole) {
     if (!userRole) return false;
     const allowedAreas = ROLE_ALLOWED_AREAS[userRole] || [];
@@ -123,6 +155,7 @@ class ServiceOrderService {
       payload: { from: previousStatus, to: status, reason: reason || null }
     });
     await order.save();
+    await this.refreshFileSummary(order, userId);
     return order.toObject();
   }
 
@@ -143,6 +176,7 @@ class ServiceOrderService {
       payload: { from: previousAssignee, to: assigneeId || null }
     });
     await order.save();
+    await this.refreshFileSummary(order, userId);
     return order.toObject();
   }
 
@@ -154,12 +188,26 @@ class ServiceOrderService {
       throw new Error('You do not have permissions to update this order');
     }
 
-    const item = order.checklist.find((check) => check.itemId === itemId);
+    let item = order.checklist.find((check) => check.itemId === itemId);
+    let activeStage = this.getActiveStage(order);
+
+    if (!item && activeStage) {
+      item = activeStage.checklist.find((check) => check.itemId === itemId);
+    }
     if (!item) return null;
 
     item.status = done ? 'DONE' : 'PENDING';
     item.doneAt = done ? new Date() : null;
     item.doneBy = done ? userId : null;
+    if (activeStage) {
+      const activeStageItem = activeStage.checklist.find((check) => check.itemId === itemId);
+      if (activeStageItem) {
+        activeStageItem.status = item.status;
+        activeStageItem.doneAt = item.doneAt;
+        activeStageItem.doneBy = item.doneBy;
+      }
+      this.syncLegacyChecklistWithActiveStage(order);
+    }
     order.updatedBy = userId;
     order.auditLogs.push({
       action: 'CHECKLIST_UPDATED',
@@ -167,6 +215,85 @@ class ServiceOrderService {
       payload: { itemId, done }
     });
     await order.save();
+    await this.refreshFileSummary(order, userId);
+    return order.toObject();
+  }
+
+  async updateStage({ id, stageCode, comment = '', userId = null, userRole = '' }) {
+    const order = await ServiceOrder.findById(id);
+    if (!order) return null;
+
+    if (!this.canManageOrderByRole(order, userRole)) {
+      throw new Error('You do not have permissions to update this order');
+    }
+
+    const nextCode = String(stageCode || '').trim().toUpperCase();
+    if (!nextCode) {
+      throw new Error('stageCode is required');
+    }
+
+    const nextStage = (order.stagesSnapshot || []).find((stage) => stage.code === nextCode);
+    if (!nextStage) {
+      throw new Error('Stage not found in this workflow');
+    }
+
+    const previousStage = this.getActiveStage(order);
+    const transitionComment = String(comment || '').trim();
+
+    if (previousStage && previousStage.code !== nextStage.code) {
+      if (this.hasPendingRequiredChecklist(previousStage)) {
+        throw new Error(`Complete the required checklist items in ${previousStage.label} before moving on`);
+      }
+
+      const missingAttachments = this.hasMissingRequiredAttachments(order, previousStage);
+      if (missingAttachments.length) {
+        throw new Error(`Missing required attachments for ${previousStage.label}: ${missingAttachments.join(', ')}`);
+      }
+
+      if (previousStage.requireCommentOnComplete && !transitionComment) {
+        throw new Error(`A comment is required to complete ${previousStage.label}`);
+      }
+    }
+
+    if (nextStage.requireCommentOnEnter && !transitionComment) {
+      throw new Error(`A comment is required to enter ${nextStage.label}`);
+    }
+
+    if (previousStage && previousStage.code !== nextStage.code) {
+      previousStage.status = 'DONE';
+      previousStage.completedAt = previousStage.completedAt || new Date();
+    }
+
+    (order.stagesSnapshot || []).forEach((stage) => {
+      if (stage.code === nextCode) {
+        stage.status = 'ACTIVE';
+        stage.startedAt = stage.startedAt || new Date();
+      } else if (stage.status !== 'DONE' && stage.status !== 'SKIPPED') {
+        stage.status = 'PENDING';
+      }
+    });
+
+    this.syncLegacyChecklistWithActiveStage(order);
+
+    if (nextStage.isFinal) {
+      order.status = 'DONE';
+    } else if (order.status === 'PENDING') {
+      order.status = 'IN_PROGRESS';
+    }
+
+    order.updatedBy = userId;
+    order.auditLogs.push({
+      action: 'STAGE_CHANGED',
+      by: userId,
+      message: transitionComment,
+      payload: {
+        from: previousStage?.code || null,
+        to: nextStage.code,
+        comment: transitionComment || null
+      }
+    });
+    await order.save();
+    await this.refreshFileSummary(order, userId);
     return order.toObject();
   }
 
@@ -190,6 +317,7 @@ class ServiceOrderService {
       payload: { previous, next: order.financials }
     });
     await order.save();
+    await this.refreshFileSummary(order, userId);
     return order.toObject();
   }
 
@@ -232,6 +360,7 @@ class ServiceOrderService {
       }
     });
     await order.save();
+    await this.refreshFileSummary(order, userId);
     return order.toObject();
   }
 
@@ -256,6 +385,7 @@ class ServiceOrderService {
       payload: { attachmentId }
     });
     await order.save();
+    await this.refreshFileSummary(order, userId);
     return order.toObject();
   }
 

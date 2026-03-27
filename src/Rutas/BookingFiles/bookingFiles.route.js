@@ -1,18 +1,46 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const BookingFile = require('../../models/booking_file.schema');
+const ServiceOrder = require('../../models/service_order.schema');
+const bookingFileSummaryService = require('../../Services/booking-files/booking-file-summary.service');
+const bookingFileBibliaService = require('../../Services/booking-files/booking-file-biblia.service');
 
 const router = express.Router();
 
+async function resolveServiceOrdersForFile(bookingFile) {
+  const fileId = bookingFile?._id;
+  const byFile = fileId
+    ? await ServiceOrder.find({ file_id: fileId }).sort({ dueDate: 1, createdAt: -1 }).lean()
+    : [];
+
+  if (byFile.length) {
+    return byFile;
+  }
+
+  if (!Array.isArray(bookingFile?.service_order_ids) || !bookingFile.service_order_ids.length) {
+    return [];
+  }
+
+  return ServiceOrder.find({ _id: { $in: bookingFile.service_order_ids } })
+    .sort({ dueDate: 1, createdAt: -1 })
+    .lean();
+}
+
+async function populateBookingFile(bookingFile) {
+  if (!bookingFile) return null;
+  const serviceOrders = await resolveServiceOrdersForFile(bookingFile);
+  return {
+    ...bookingFile,
+    service_order_ids: serviceOrders
+  };
+}
+
 async function findBookingFile(filter) {
-  return BookingFile.findOne(filter)
+  const item = await BookingFile.findOne(filter)
     .populate('contact_id', '_id name email phone status')
     .populate('quoter_id', '_id guest status soldAt booking_file_id')
-    .populate({
-      path: 'service_order_ids',
-      options: { sort: { dueDate: 1, createdAt: -1 } }
-    })
     .lean();
+  return populateBookingFile(item);
 }
 
 router.get('/', async (req, res) => {
@@ -22,14 +50,23 @@ router.get('/', async (req, res) => {
     const skip = (page - 1) * pageSize;
 
     const query = {};
-    if (req.query.operation_status) {
-      query.operation_status = req.query.operation_status;
+    if (req.query.overall_status) {
+      query.overall_status = req.query.overall_status;
     }
-    if (req.query.reservation_status) {
-      query.reservation_status = req.query.reservation_status;
+    if (req.query.operations_status) {
+      query.operations_status = req.query.operations_status;
     }
-    if (req.query.payment_status) {
-      query.payment_status = req.query.payment_status;
+    if (req.query.reservations_status) {
+      query.reservations_status = req.query.reservations_status;
+    }
+    if (req.query.payments_status) {
+      query.payments_status = req.query.payments_status;
+    }
+    if (req.query.deliverables_status) {
+      query.deliverables_status = req.query.deliverables_status;
+    }
+    if (req.query.risk_level) {
+      query.risk_level = req.query.risk_level;
     }
     const rawQuery = String(req.query.q || '').trim();
     if (rawQuery) {
@@ -54,9 +91,24 @@ router.get('/', async (req, res) => {
       BookingFile.countDocuments(query)
     ]);
 
-    return res.status(200).json({ items, total, page, pageSize });
+    const hydratedItems = await Promise.all(items.map((item) => populateBookingFile(item)));
+
+    return res.status(200).json({ items: hydratedItems, total, page, pageSize });
   } catch (error) {
     return res.status(500).json({ message: 'Error listing booking files', error: error.message });
+  }
+});
+
+router.get('/biblia/daily', async (req, res) => {
+  try {
+    const result = await bookingFileBibliaService.getDailyView({
+      date: req.query.date,
+      area: req.query.area,
+      status: req.query.status
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error building Biblia daily view', error: error.message });
   }
 });
 
@@ -69,6 +121,43 @@ router.get('/by-quoter/:quoterId', async (req, res) => {
     return res.status(200).json(bookingFile);
   } catch (error) {
     return res.status(500).json({ message: 'Error fetching booking file', error: error.message });
+  }
+});
+
+router.post('/:id/recalculate-summary', async (req, res) => {
+  try {
+    const updated = await bookingFileSummaryService.recalculateFileSummary(req.params.id, {
+      updatedBy: req.user?.id || null
+    });
+    return res.status(200).json(updated);
+  } catch (error) {
+    return res.status(400).json({ message: 'Error recalculating file summary', error: error.message });
+  }
+});
+
+router.get('/:id/summary', async (req, res) => {
+  try {
+    const bookingFile = await BookingFile.findById(req.params.id).lean({ virtuals: true });
+    if (!bookingFile) {
+      return res.status(404).json({ message: 'Booking file not found' });
+    }
+    return res.status(200).json({
+      _id: bookingFile._id,
+      fileCode: bookingFile.fileCode,
+      overall_status: bookingFile.overall_status,
+      operations_status: bookingFile.operations_status,
+      reservations_status: bookingFile.reservations_status,
+      payments_status: bookingFile.payments_status,
+      deliverables_status: bookingFile.deliverables_status,
+      passenger_info_status: bookingFile.passenger_info_status,
+      risk_level: bookingFile.risk_level,
+      next_action: bookingFile.next_action,
+      next_action_due_at: bookingFile.next_action_due_at,
+      last_activity_at: bookingFile.last_activity_at,
+      is_cancelled: bookingFile.is_cancelled
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching booking file summary', error: error.message });
   }
 });
 

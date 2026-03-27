@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Contact = require('../../models/contact.schema'); 
 const User = require('../../models/user.schema')
+const BookingFile = require('../../models/booking_file.schema');
 const  { authenticate, authorize }= require('../../middlewares/auth');
 const serviceOrderOrchestrator = require('../../Services/service-orders/service-order.orchestrator');
 
@@ -309,11 +310,16 @@ router.patch('/:id', async (req, res) => {
 
         // If sold quote changed, create/ensure operational orders from CONTACT_SOLD.
         if (currentSoldQuoterId && currentSoldQuoterId !== previousSoldQuoterId) {
+          const bookingFile = await BookingFile.findOne({ quoter_id: currentSoldQuoterId }).select('_id');
+          if (!bookingFile) {
+            return res.status(400).json({ message: 'Booking file not found for current sold quoter' });
+          }
           await serviceOrderOrchestrator.createOrdersForContactSold({
-            contactId: req.params.id,
-            soldQuoterId: currentSoldQuoterId,
-            changedBy
-          });
+              contactId: req.params.id,
+              soldQuoterId: currentSoldQuoterId,
+              fileId: String(bookingFile._id),
+              changedBy
+            });
         }
 
         // If sale was reverted, cancel previous event orders (do not delete).

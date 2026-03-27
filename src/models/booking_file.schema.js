@@ -1,14 +1,31 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
-const BOOKING_OPERATION_STATUSES = ['PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED'];
-const BOOKING_RESERVATION_STATUSES = ['PENDING', 'PARTIAL', 'CONFIRMED', 'CANCELLED'];
-const BOOKING_PAYMENT_STATUSES = ['PENDING', 'PARTIAL', 'PAID', 'REFUNDED', 'NOT_REQUIRED'];
+const FILE_OVERALL_STATUSES = ['PENDING', 'ACTIVE', 'AT_RISK', 'READY', 'COMPLETED', 'CANCELLED'];
+const FILE_AREA_STATUSES = ['NOT_STARTED', 'PENDING', 'IN_PROGRESS', 'PARTIAL', 'COMPLETED', 'BLOCKED', 'CANCELLED', 'NOT_REQUIRED'];
+const FILE_RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const PASSENGER_INFO_STATUSES = ['NOT_SENT', 'SENT', 'IN_PROGRESS', 'INCOMPLETE', 'COMPLETED', 'VALIDATED'];
+
+const passengerInfoStatusSchema = new Schema({
+  status: {
+    type: String,
+    enum: PASSENGER_INFO_STATUSES,
+    default: 'NOT_SENT',
+    index: true
+  },
+  completion_percentage: { type: Number, default: 0, min: 0, max: 100 },
+  missing_required_fields: { type: [String], default: [] },
+  last_reminder_at: { type: Date, default: null },
+  reminder_count: { type: Number, default: 0, min: 0 },
+  validated_at: { type: Date, default: null },
+  validated_by: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  notes: { type: String, default: '' }
+}, { _id: false });
 
 const bookingFileSchema = new Schema({
   quoter_id: {
     type: Schema.Types.ObjectId,
-    ref: 'Quoter',
+    ref: 'QuoterV2',
     required: true,
     unique: true,
     index: true
@@ -37,24 +54,58 @@ const bookingFileSchema = new Schema({
   },
   sales_snapshot: { type: Schema.Types.Mixed, required: true },
   itinerary_snapshot: { type: Schema.Types.Mixed, required: true },
-  operation_status: {
+  overall_status: {
     type: String,
-    enum: BOOKING_OPERATION_STATUSES,
+    enum: FILE_OVERALL_STATUSES,
     default: 'PENDING',
     index: true
   },
-  reservation_status: {
+  operations_status: {
     type: String,
-    enum: BOOKING_RESERVATION_STATUSES,
+    enum: FILE_AREA_STATUSES,
     default: 'PENDING',
     index: true
   },
-  payment_status: {
+  reservations_status: {
     type: String,
-    enum: BOOKING_PAYMENT_STATUSES,
+    enum: FILE_AREA_STATUSES,
     default: 'PENDING',
     index: true
   },
+  payments_status: {
+    type: String,
+    enum: FILE_AREA_STATUSES,
+    default: 'PENDING',
+    index: true
+  },
+  deliverables_status: {
+    type: String,
+    enum: FILE_AREA_STATUSES,
+    default: 'PENDING',
+    index: true
+  },
+  passenger_info_status: {
+    type: passengerInfoStatusSchema,
+    default: () => ({})
+  },
+  owner_user_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
+  risk_level: {
+    type: String,
+    enum: FILE_RISK_LEVELS,
+    default: 'LOW',
+    index: true
+  },
+  next_action: { type: String, default: '' },
+  next_action_due_at: { type: Date, default: null, index: true },
+  last_activity_at: { type: Date, default: null, index: true },
+  is_cancelled: { type: Boolean, default: false, index: true },
+  cancel_reason: { type: String, default: '' },
+  cancelled_at: { type: Date, default: null },
   service_order_ids: {
     type: [{ type: Schema.Types.ObjectId, ref: 'ServiceOrder' }],
     default: []
@@ -63,5 +114,32 @@ const bookingFileSchema = new Schema({
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null }
 }, { timestamps: true });
+
+bookingFileSchema.virtual('operation_status')
+  .get(function getOperationStatus() {
+    return this.operations_status;
+  })
+  .set(function setOperationStatus(value) {
+    this.operations_status = value;
+  });
+
+bookingFileSchema.virtual('reservation_status')
+  .get(function getReservationStatus() {
+    return this.reservations_status;
+  })
+  .set(function setReservationStatus(value) {
+    this.reservations_status = value;
+  });
+
+bookingFileSchema.virtual('payment_status')
+  .get(function getPaymentStatus() {
+    return this.payments_status;
+  })
+  .set(function setPaymentStatus(value) {
+    this.payments_status = value;
+  });
+
+bookingFileSchema.set('toJSON', { virtuals: true });
+bookingFileSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('BookingFile', bookingFileSchema);

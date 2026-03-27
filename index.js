@@ -10,8 +10,21 @@ const {authenticate} = require('./src/middlewares/auth.js')
 
 const apk = exs();
 const puerto = 3000;
+
+const corsOptions = {
+  origin: [
+    'http://localhost:4200',      // Sistema 1 frontend (dev)
+    'http://localhost:65425',      // Sistema 2 frontend (dev)
+    'http://44.201.126.204:4201'   // Sistema 2 frontend (prod)
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
+};
+
 apk.use(exs.json());
-apk.use(cors());
+apk.use(cors(corsOptions));
 apk.use(morgan('dev'));
 connectDB();
 routes(apk);

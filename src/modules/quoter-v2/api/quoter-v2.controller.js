@@ -5,6 +5,7 @@ const QuoterV2 = require('../infrastructure/mongoose/quoter-v2.schema');
 const Contact = require('../../../models/contact.schema');
 const BookingFile = require('../../../models/booking_file.schema');
 const serviceOrderOrchestrator = require('../../../Services/service-orders/service-order.orchestrator');
+const bookingFileSummaryService = require('../../../Services/booking-files/booking-file-summary.service');
 
 function normalizeFileCode(value = '') {
   return String(value).trim().toUpperCase();
@@ -218,6 +219,7 @@ class QuoterV2Controller {
       const ordersResult = await serviceOrderOrchestrator.createOrdersForContactSold({
         contactId: String(contact._id),
         soldQuoterId: String(quoter._id),
+        fileId: String(bookingFile._id),
         changedBy
       });
 
@@ -227,6 +229,7 @@ class QuoterV2Controller {
         { $set: { service_order_ids: serviceOrderIds, updatedBy: changedBy } },
         { new: true }
       );
+      bookingFile = await bookingFileSummaryService.recalculateFileSummary(String(bookingFile._id), { updatedBy: changedBy });
 
       return res.status(200).json({
         message: 'Sale confirmed successfully',

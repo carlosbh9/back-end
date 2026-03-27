@@ -1,6 +1,7 @@
 const serviceOrderService = require('../../Services/service-orders/service-order.service');
 const serviceOrderOrchestrator = require('../../Services/service-orders/service-order.orchestrator');
 const Contact = require('../../models/contact.schema');
+const BookingFile = require('../../models/booking_file.schema');
 const { createServiceOrderAttachmentPresign, createServiceOrderAttachmentReadPresign } = require('../../utils/serviceOrderUploads');
 
 class ServiceOrdersController {
@@ -91,6 +92,24 @@ class ServiceOrdersController {
     } catch (error) {
       const code = error.message?.includes('permissions') ? 403 : 400;
       return res.status(code).json({ message: 'Error updating checklist item', error: error.message });
+    }
+  }
+
+  async updateStage(req, res) {
+    try {
+      const { stageCode, comment = '' } = req.body || {};
+      const item = await serviceOrderService.updateStage({
+        id: req.params.id,
+        stageCode,
+        comment,
+        userId: req.user?.id || null,
+        userRole: req.user?.role || ''
+      });
+      if (!item) return res.status(404).json({ message: 'Service order not found' });
+      return res.status(200).json(item);
+    } catch (error) {
+      const code = error.message?.includes('permissions') ? 403 : 400;
+      return res.status(code).json({ message: 'Error updating stage', error: error.message });
     }
   }
 
@@ -195,10 +214,15 @@ class ServiceOrdersController {
       if (!contact.soldQuoterId) {
         return res.status(400).json({ message: 'Contact has no soldQuoterId to sync' });
       }
+      const bookingFile = await BookingFile.findOne({ quoter_id: contact.soldQuoterId }).select('_id');
+      if (!bookingFile) {
+        return res.status(400).json({ message: 'Booking file not found for this sold quoter' });
+      }
 
       const result = await serviceOrderOrchestrator.createOrdersForContactSold({
         contactId: String(contact._id),
         soldQuoterId: String(contact.soldQuoterId),
+        fileId: String(bookingFile._id),
         changedBy: req.user?.id || null
       });
       return res.status(200).json(result);
