@@ -4,9 +4,11 @@ const { QUOTE_V2_STATUSES, QUOTER_V2_SORT_FIELDS } = require('../domain/quoter-v
 const QuoterV2 = require('../infrastructure/mongoose/quoter-v2.schema');
 const Contact = require('../../../models/contact.schema');
 const BookingFile = require('../../../models/booking_file.schema');
+const User = require('../../../models/user.schema');
 const serviceOrderOrchestrator = require('../../../Services/service-orders/service-order.orchestrator');
 const bookingFileSummaryService = require('../../../Services/booking-files/booking-file-summary.service');
 const { buildOperationalItineraryFromSnapshot } = require('../../../Services/booking-files/booking-file-operational-itinerary.service');
+const bookingFileSaleNotificationService = require('../../../Services/booking-files/booking-file-sale-notification.service');
 const {
   buildContactAccessFilter,
   findAccessibleContactById
@@ -14,6 +16,16 @@ const {
 
 function normalizeFileCode(value = '') {
   return String(value).trim().toUpperCase();
+}
+
+function normalizeStringList(values = []) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
 }
 
 function buildBookingSnapshot(quoter) {
@@ -147,6 +159,8 @@ class QuoterV2Controller {
   async confirmSale(req, res) {
     try {
       const requestedFileCode = normalizeFileCode(req.body?.fileCode);
+      const notifyEmails = normalizeStringList(req.body?.notifyEmails).map((email) => email.toLowerCase());
+      const notifyUserIds = normalizeStringList(req.body?.notifyUserIds);
       const quoter = await QuoterV2.findById(req.params.id);
       if (!quoter) {
         return res.status(404).json({ message: 'Quoter V2 not found' });
@@ -158,6 +172,9 @@ class QuoterV2Controller {
       }
 
       const changedBy = req.user?.id || null;
+      const changedByUser = changedBy
+        ? await User.findById(changedBy).select('name username')
+        : null;
       const existingBookingFile = quoter.booking_file_id
         ? await BookingFile.findById(quoter.booking_file_id)
         : await BookingFile.findOne({ quoter_id: quoter._id });
@@ -241,10 +258,35 @@ class QuoterV2Controller {
       );
       bookingFile = await bookingFileSummaryService.recalculateFileSummary(String(bookingFile._id), { updatedBy: changedBy });
 
+      let notification = {
+        sent: false,
+        skipped: true,
+        reason: 'Notification not attempted'
+      };
+
+      try {
+        notification = await bookingFileSaleNotificationService.notifySaleConfirmed({
+          bookingFile,
+          contact,
+          quoter,
+          changedByUser,
+          notifyEmails,
+          notifyUserIds
+        });
+      } catch (notificationError) {
+        notification = {
+          sent: false,
+          skipped: true,
+          reason: notificationError.message
+        };
+        console.error('[booking-file-sale-notification] Error sending email', notificationError);
+      }
+
       return res.status(200).json({
         message: 'Sale confirmed successfully',
         quoter,
         bookingFile,
+        notification,
         serviceOrders: {
           businessEventId: ordersResult.businessEventId,
           createdCount: ordersResult.createdCount
