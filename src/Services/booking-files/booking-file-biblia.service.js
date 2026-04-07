@@ -17,98 +17,70 @@ class BookingFileBibliaService {
     return date >= start && date <= end;
   }
 
+  compareTime(a = '', b = '') {
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
+    return String(a).localeCompare(String(b));
+  }
+
+  mapDetailStatusToExecutionStatus(status = '') {
+    if (status === 'READY') return 'READY';
+    if (status === 'IN_PROGRESS') return 'IN_PROGRESS';
+    return 'PENDING';
+  }
+
+  normalizeCategory(section = '') {
+    const value = String(section || '').toLowerCase();
+    if (value === 'service' || value === 'experience') return 'service';
+    if (value === 'hotel') return 'hotel';
+    if (value === 'flight') return 'flight';
+    if (value === 'operator') return 'operator';
+    if (value === 'cruise') return 'cruise';
+    return value;
+  }
+
   collectDailyItems(file, targetDate) {
-    const itinerary = file?.itinerary_snapshot || {};
+    const operational = file?.operational_itinerary || {};
+    const days = Array.isArray(operational.days) ? operational.days : [];
+    const matchingDays = days.filter((day) => this.normalizeDate(day?.date) === targetDate);
     const rows = [];
 
-    for (const group of itinerary.services || []) {
-      if (this.normalizeDate(group?.date) !== targetDate) continue;
-      for (const service of group?.services || []) {
+    for (const day of matchingDays) {
+      for (const item of day?.items || []) {
+        const detail = item?.detail || {};
+        const primaryTime = detail?.start_time || item?.sort_time || '';
         rows.push({
-          section: 'SERVICE',
+          item_id: item?.item_id || '',
+          day: Number(day?.day) || 0,
+          section: item?.item_type || 'SERVICE',
           execution_date: targetDate,
-          title: service?.name_service || 'Unnamed service',
-          detail: [service?.placement, service?.type, service?.notes].filter(Boolean).join(' | '),
-          city: service?.city || group?.city || '',
-          notes: service?.notes || '',
+          time: primaryTime,
+          end_time: detail?.end_time || '',
+          pickup_time: detail?.pickup_time || '',
+          meeting_point: detail?.meeting_point || '',
+          title: item?.title || 'Unnamed itinerary item',
+          detail: item?.subtitle || '',
+          city: item?.city || day?.city || '',
+          notes: detail?.notes || '',
+          responsible: detail?.responsible_name || '',
+          supplier_name: detail?.supplier_name || '',
+          supplier_contact: detail?.supplier_contact || '',
+          detail_status: detail?.status || 'PENDING',
           matchingKey: {
-            category: 'service',
-            title: service?.name_service || '',
+            category: this.normalizeCategory(item?.item_type),
+            title: item?.title || '',
             date: targetDate
           }
         });
       }
     }
 
-    for (const hotel of itinerary.hotels || []) {
-      if (this.normalizeDate(hotel?.date) !== targetDate) continue;
-      rows.push({
-        section: 'HOTEL',
-        execution_date: targetDate,
-        title: hotel?.name_hotel || 'Unnamed hotel',
-        detail: [hotel?.accomodatios_category, hotel?.notes].filter(Boolean).join(' | '),
-        city: hotel?.city || '',
-        notes: hotel?.notes || '',
-        matchingKey: {
-          category: 'hotel',
-          title: hotel?.name_hotel || '',
-          date: targetDate
-        }
-      });
-    }
-
-    for (const flight of itinerary.flights || []) {
-      if (this.normalizeDate(flight?.date) !== targetDate) continue;
-      rows.push({
-        section: 'FLIGHT',
-        execution_date: targetDate,
-        title: flight?.route || 'Unnamed flight',
-        detail: flight?.notes || '',
-        city: '',
-        notes: flight?.notes || '',
-        matchingKey: {
-          category: 'flight',
-          title: flight?.route || '',
-          date: targetDate
-        }
-      });
-    }
-
-    for (const operator of itinerary.operators || []) {
-      if (this.normalizeDate(operator?.date) !== targetDate) continue;
-      rows.push({
-        section: 'OPERATOR',
-        execution_date: targetDate,
-        title: operator?.name_operator || 'Unnamed operator',
-        detail: [operator?.city, operator?.country, operator?.notes].filter(Boolean).join(' | '),
-        city: operator?.city || '',
-        notes: operator?.notes || '',
-        matchingKey: {
-          category: 'operator',
-          title: operator?.name_operator || '',
-          date: targetDate
-        }
-      });
-    }
-
-    for (const cruise of itinerary.cruises || []) {
-      if (this.normalizeDate(cruise?.date) !== targetDate) continue;
-      rows.push({
-        section: 'CRUISE',
-        execution_date: targetDate,
-        title: cruise?.name || 'Unnamed cruise',
-        detail: [cruise?.operator, cruise?.notes].filter(Boolean).join(' | '),
-        city: '',
-        notes: cruise?.notes || '',
-        matchingKey: {
-          category: 'cruise',
-          title: cruise?.name || '',
-          date: targetDate
-        }
-      });
-    }
-
-    return rows;
+    return rows.sort((left, right) =>
+      this.compareTime(left.time, right.time)
+      || left.day - right.day
+      || String(left.title || '').localeCompare(String(right.title || ''))
+    );
   }
 
   async getDailyView({ date, area = '', status = '' }) {
@@ -160,16 +132,26 @@ class BookingFileBibliaService {
           risk_level: file.risk_level || 'LOW',
           next_action: file.next_action || '',
           execution_date: targetDate,
+          day: row.day,
+          item_id: row.item_id,
           section: row.section,
+          time: row.time,
+          end_time: row.end_time,
+          pickup_time: row.pickup_time,
+          meeting_point: row.meeting_point,
           title: row.title,
           detail: row.detail,
           city: row.city,
           notes: row.notes,
           service_order_ids: matchingOrders.map((order) => String(order._id)),
-          execution_status: primaryOrder?.status || 'PENDING',
+          execution_status: primaryOrder?.status || this.mapDetailStatusToExecutionStatus(row.detail_status),
+          detail_status: row.detail_status,
           area: primaryOrder?.area || '',
-          responsible: primaryOrder?.assigneeId || file.owner_user_id || null,
-          observations: [row.notes, ...(matchingOrders.map((order) => order.auditLogs?.[order.auditLogs.length - 1]?.message).filter(Boolean))].filter(Boolean).join(' | ')
+          responsible: row.responsible || primaryOrder?.assigneeId || file.owner_user_id || null,
+          supplier_name: row.supplier_name,
+          supplier_contact: row.supplier_contact,
+          has_service_order: Boolean(primaryOrder),
+          observations: [row.notes, row.meeting_point ? `Meeting point: ${row.meeting_point}` : '', ...(matchingOrders.map((order) => order.auditLogs?.[order.auditLogs.length - 1]?.message).filter(Boolean))].filter(Boolean).join(' | ')
         };
       });
 
@@ -185,15 +167,25 @@ class BookingFileBibliaService {
           risk_level: file.risk_level || 'LOW',
           next_action: file.next_action || '',
           execution_date: targetDate,
+          day: 0,
+          item_id: '',
           section: 'TRAVEL_DAY',
+          time: '',
+          end_time: '',
+          pickup_time: '',
+          meeting_point: '',
           title: 'Travel day in progress',
           detail: file.destinations?.join(' | ') || 'No dated services in itinerary snapshot',
           city: file.destinations?.[0] || '',
           notes: file.notes || '',
           service_order_ids: [],
           execution_status: file.operations_status || 'PENDING',
+          detail_status: 'PENDING',
           area: '',
           responsible: file.owner_user_id || null,
+          supplier_name: '',
+          supplier_contact: '',
+          has_service_order: false,
           observations: file.notes || ''
         });
       }
@@ -203,7 +195,7 @@ class BookingFileBibliaService {
 
     const filteredItems = items.filter((item) => {
       const matchesArea = !area || item.area === area;
-      const matchesStatus = !status || item.execution_status === status;
+      const matchesStatus = !status || item.execution_status === status || item.detail_status === status;
       return matchesArea && matchesStatus;
     });
 

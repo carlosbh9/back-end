@@ -6,6 +6,11 @@ const Contact = require('../../../models/contact.schema');
 const BookingFile = require('../../../models/booking_file.schema');
 const serviceOrderOrchestrator = require('../../../Services/service-orders/service-order.orchestrator');
 const bookingFileSummaryService = require('../../../Services/booking-files/booking-file-summary.service');
+const { buildOperationalItineraryFromSnapshot } = require('../../../Services/booking-files/booking-file-operational-itinerary.service');
+const {
+  buildContactAccessFilter,
+  findAccessibleContactById
+} = require('../../../Services/contacts/contact-access.service');
 
 function normalizeFileCode(value = '') {
   return String(value).trim().toUpperCase();
@@ -38,7 +43,12 @@ function normalizeCotizationStatus(contact, soldQuoterId) {
 
 async function resolveContactForQuote(body = {}, user = null) {
   if (body.contact_id) {
-    return body.contact_id;
+    const contact = await findAccessibleContactById(body.contact_id, user, '_id owner');
+    if (!contact) {
+      throw new Error('contact_id is invalid or not accessible for this user');
+    }
+
+    return contact._id;
   }
 
   const guestName = String(body.guest || '').trim();
@@ -46,7 +56,7 @@ async function resolveContactForQuote(body = {}, user = null) {
     throw new Error('guest is required');
   }
 
-  let contact = await Contact.findOne({ name: guestName }).select('_id owner');
+  let contact = await Contact.findOne(buildContactAccessFilter(user, { name: guestName })).select('_id owner');
   if (!contact) {
     if (!user?.id) {
       throw new Error('contact_id or authenticated user is required');
@@ -57,9 +67,6 @@ async function resolveContactForQuote(body = {}, user = null) {
       td_designed: user.username || '',
       owner: user.id,
     });
-  } else if (!contact.owner && user?.id) {
-    contact.owner = user.id;
-    await contact.save();
   }
 
   return contact._id;
@@ -169,6 +176,8 @@ class QuoterV2Controller {
         return res.status(409).json({ message: `File code ${fileCode} is already in use` });
       }
 
+      const itinerarySnapshot = buildBookingSnapshot(quoter);
+
       const bookingPayload = {
         contact_id: contact._id,
         fileCode,
@@ -186,7 +195,8 @@ class QuoterV2Controller {
           soldAt: new Date().toISOString(),
           total_prices: quoter.total_prices || {}
         },
-        itinerary_snapshot: buildBookingSnapshot(quoter),
+        itinerary_snapshot: itinerarySnapshot,
+        operational_itinerary: buildOperationalItineraryFromSnapshot(itinerarySnapshot, changedBy),
         updatedBy: changedBy
       };
 

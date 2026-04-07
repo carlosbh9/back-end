@@ -48,7 +48,8 @@ class ServiceOrdersController {
         status,
         reason,
         userId: req.user?.id || null,
-        userRole: req.user?.role || ''
+        userRole: req.user?.role || '',
+        userPermissions: req.user?.permissions || []
       });
       if (!item) return res.status(404).json({ message: 'Service order not found' });
       return res.status(200).json(item);
@@ -67,7 +68,8 @@ class ServiceOrdersController {
         id: req.params.id,
         assigneeId: assigneeId || null,
         userId: req.user?.id || null,
-        userRole: req.user?.role || ''
+        userRole: req.user?.role || '',
+        userPermissions: req.user?.permissions || []
       });
       if (!item) return res.status(404).json({ message: 'Service order not found' });
       return res.status(200).json(item);
@@ -85,7 +87,8 @@ class ServiceOrdersController {
         itemId: req.params.itemId,
         done: !!done,
         userId: req.user?.id || null,
-        userRole: req.user?.role || ''
+        userRole: req.user?.role || '',
+        userPermissions: req.user?.permissions || []
       });
       if (!item) return res.status(404).json({ message: 'Service order or checklist item not found' });
       return res.status(200).json(item);
@@ -103,7 +106,8 @@ class ServiceOrdersController {
         stageCode,
         comment,
         userId: req.user?.id || null,
-        userRole: req.user?.role || ''
+        userRole: req.user?.role || '',
+        userPermissions: req.user?.permissions || []
       });
       if (!item) return res.status(404).json({ message: 'Service order not found' });
       return res.status(200).json(item);
@@ -119,7 +123,8 @@ class ServiceOrdersController {
         id: req.params.id,
         payload: req.body || {},
         userId: req.user?.id || null,
-        userRole: req.user?.role || ''
+        userRole: req.user?.role || '',
+        userPermissions: req.user?.permissions || []
       });
       if (!item) return res.status(404).json({ message: 'Service order not found' });
       return res.status(200).json(item);
@@ -135,7 +140,8 @@ class ServiceOrdersController {
         id: req.params.id,
         payload: req.body || {},
         userId: req.user?.id || null,
-        userRole: req.user?.role || ''
+        userRole: req.user?.role || '',
+        userPermissions: req.user?.permissions || []
       });
       if (!item) return res.status(404).json({ message: 'Service order not found' });
       return res.status(200).json(item);
@@ -151,7 +157,8 @@ class ServiceOrdersController {
         id: req.params.id,
         attachmentId: req.params.attachmentId,
         userId: req.user?.id || null,
-        userRole: req.user?.role || ''
+        userRole: req.user?.role || '',
+        userPermissions: req.user?.permissions || []
       });
       if (!item) return res.status(404).json({ message: 'Service order or attachment not found' });
       return res.status(200).json(item);
@@ -168,7 +175,11 @@ class ServiceOrdersController {
         return res.status(400).json({ message: 'fileName and contentType are required' });
       }
 
-      const order = await serviceOrderService.canManageById(req.params.id, req.user?.role || '');
+      const order = await serviceOrderService.canManageById(
+        req.params.id,
+        req.user?.role || '',
+        req.user?.permissions || []
+      );
       if (!order) return res.status(404).json({ message: 'Service order not found' });
 
       const result = await createServiceOrderAttachmentPresign({
@@ -190,7 +201,8 @@ class ServiceOrdersController {
       const result = await serviceOrderService.getAttachmentById(
         req.params.id,
         req.params.attachmentId,
-        req.user?.role || ''
+        req.user?.role || '',
+        req.user?.permissions || []
       );
       if (!result) return res.status(404).json({ message: 'Service order not found' });
       if (!result.attachment) return res.status(404).json({ message: 'Attachment not found' });

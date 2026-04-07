@@ -4,6 +4,10 @@ const BookingFile = require('../../models/booking_file.schema');
 const ServiceOrder = require('../../models/service_order.schema');
 const bookingFileSummaryService = require('../../Services/booking-files/booking-file-summary.service');
 const bookingFileBibliaService = require('../../Services/booking-files/booking-file-biblia.service');
+const {
+  buildOperationalItineraryFromSnapshot,
+  updateOperationalItineraryItem
+} = require('../../Services/booking-files/booking-file-operational-itinerary.service');
 
 const router = express.Router();
 
@@ -121,6 +125,67 @@ router.get('/by-quoter/:quoterId', async (req, res) => {
     return res.status(200).json(bookingFile);
   } catch (error) {
     return res.status(500).json({ message: 'Error fetching booking file', error: error.message });
+  }
+});
+
+router.get('/:id/operational-itinerary', async (req, res) => {
+  try {
+    const bookingFile = await BookingFile.findById(req.params.id).lean();
+    if (!bookingFile) {
+      return res.status(404).json({ message: 'Booking file not found' });
+    }
+
+    return res.status(200).json(bookingFile.operational_itinerary || {
+      generated_from_snapshot_at: null,
+      updated_at: null,
+      updated_by: null,
+      completion_percentage: 0,
+      days: []
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error fetching operational itinerary', error: error.message });
+  }
+});
+
+router.post('/:id/operational-itinerary/rebuild', async (req, res) => {
+  try {
+    const bookingFile = await BookingFile.findById(req.params.id);
+    if (!bookingFile) {
+      return res.status(404).json({ message: 'Booking file not found' });
+    }
+
+    bookingFile.operational_itinerary = buildOperationalItineraryFromSnapshot(
+      bookingFile.itinerary_snapshot || {},
+      req.user?.id || null
+    );
+    bookingFile.updatedBy = req.user?.id || bookingFile.updatedBy || null;
+    await bookingFile.save();
+
+    return res.status(200).json(bookingFile.operational_itinerary);
+  } catch (error) {
+    return res.status(400).json({ message: 'Error rebuilding operational itinerary', error: error.message });
+  }
+});
+
+router.patch('/:id/operational-itinerary/items/:itemId', async (req, res) => {
+  try {
+    const bookingFile = await BookingFile.findById(req.params.id);
+    if (!bookingFile) {
+      return res.status(404).json({ message: 'Booking file not found' });
+    }
+
+    bookingFile.operational_itinerary = updateOperationalItineraryItem(
+      bookingFile.operational_itinerary || { days: [] },
+      req.params.itemId,
+      req.body || {},
+      req.user?.id || null
+    );
+    bookingFile.updatedBy = req.user?.id || bookingFile.updatedBy || null;
+    await bookingFile.save();
+
+    return res.status(200).json(bookingFile.operational_itinerary);
+  } catch (error) {
+    return res.status(400).json({ message: 'Error updating operational itinerary item', error: error.message });
   }
 });
 

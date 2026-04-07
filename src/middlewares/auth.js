@@ -1,7 +1,9 @@
- const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 //import jwt from 'jsonwebtoken';
 //const JWT_SECRET = 'secretKey'; // Usa una variable de entorno
 require('dotenv').config()
+const { normalizePermissions } = require('../security/permissions');
+const { isAdminRole } = require('../security/access-policies');
 
 function extractBearerToken(req) {
   const header = req.headers['authorization'] || req.headers.authorization;
@@ -35,7 +37,7 @@ function buildUserFromSessionPayload(payload) {
     role: String(payload.role || ''),
     username: String(payload.username || ''),
     email: String(payload.email || ''),
-    permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+    permissions: normalizePermissions(payload.permissions),
   };
 }
 
@@ -47,6 +49,7 @@ function authenticateBridge(req, res, next) {
 
   try {
     const decoded = decodePrimaryJwt(token);
+    decoded.permissions = normalizePermissions(decoded.permissions);
     req.user = decoded;
     req.authSource = 'primary';
     return next();
@@ -89,6 +92,7 @@ const authenticate = (req, res, next) => {
 
   try {
     const decoded = decodePrimaryJwt(token);
+    decoded.permissions = normalizePermissions(decoded.permissions);
     req.user = decoded;
     next();
   } catch (error) {
@@ -103,6 +107,7 @@ const authorize = (roles = []) => {
           if (!token) return res.status(401).json({ error: 'Acceso denegado, token requerido' });
 
           const decoded = decodePrimaryJwt(token);
+          decoded.permissions = normalizePermissions(decoded.permissions);
           req.user = decoded;
 
           if (!roles.includes(req.user.role)) {
@@ -115,12 +120,53 @@ const authorize = (roles = []) => {
       }
   };
   };
+
+const authorizePermissions = (permissions = [], options = {}) => {
+  const {
+    requireAll = true,
+    allowAdmin = true
+  } = options;
+
+  return (req, res, next) => {
+    try {
+      const token = extractBearerToken(req);
+      if (!token) return res.status(401).json({ error: 'Acceso denegado, token requerido' });
+
+      const decoded = decodePrimaryJwt(token);
+      decoded.permissions = normalizePermissions(decoded.permissions);
+      req.user = decoded;
+
+      if (allowAdmin && isAdminRole(req.user.role)) {
+        return next();
+      }
+
+      const requiredPermissions = normalizePermissions(permissions);
+      if (!requiredPermissions.length) {
+        return next();
+      }
+
+      const userPermissions = req.user.permissions || [];
+      const isAuthorized = requireAll
+        ? requiredPermissions.every((permission) => userPermissions.includes(permission))
+        : requiredPermissions.some((permission) => userPermissions.includes(permission));
+
+      if (!isAuthorized) {
+        return res.status(403).json({ error: 'No tienes permisos para realizar esta accion' });
+      }
+
+      return next();
+    } catch (error) {
+      return res.status(401).json({ error: 'Token invÃ¡lido o expirado' });
+    }
+  };
+};
   
  
 
- module.exports = {
+module.exports = {
   authenticate,
   authorize,
+  authorizePermissions,
   authenticateQuoterBridge,
   authenticateItineraryBridge,
 };

@@ -1,5 +1,11 @@
 const ServiceOrder = require('../../models/service_order.schema');
 const bookingFileSummaryService = require('../booking-files/booking-file-summary.service');
+const { PERMISSIONS } = require('../../security/permissions');
+const {
+  isAdminRole,
+  getServiceOrderAreasForRole,
+  canAccessServiceOrderArea,
+} = require('../../security/access-policies');
 
 const ALLOWED_STATUS_TRANSITIONS = {
   // Operational flow allows back-and-forth while work is active.
@@ -10,16 +16,37 @@ const ALLOWED_STATUS_TRANSITIONS = {
   CANCELLED: []
 };
 
-const ROLE_ALLOWED_AREAS = {
-  admin: ['RESERVAS', 'OPERACIONES', 'CONTABILIDAD', 'PAGOS'],
-  reservas: ['RESERVAS'],
-  operaciones: ['OPERACIONES', 'RESERVAS'],
-  contabilidad: ['CONTABILIDAD', 'PAGOS'],
-  pagos: ['PAGOS', 'CONTABILIDAD'],
-  ventas: ['RESERVAS', 'OPERACIONES']
-};
-
 class ServiceOrderService {
+  canCancelOrder(userRole = '', userPermissions = []) {
+    if (isAdminRole(userRole)) return true;
+    return Array.isArray(userPermissions) && userPermissions.includes(PERMISSIONS.SERVICE_ORDER_CANCEL);
+  }
+
+  canManageFinancials(userRole = '', userPermissions = []) {
+    if (isAdminRole(userRole)) return true;
+    return Array.isArray(userPermissions) && userPermissions.includes(PERMISSIONS.SERVICE_ORDER_FINANCIALS_MANAGE);
+  }
+
+  canManageAttachments(userRole = '', userPermissions = []) {
+    if (isAdminRole(userRole)) return true;
+    return Array.isArray(userPermissions) && userPermissions.includes(PERMISSIONS.SERVICE_ORDER_ATTACHMENTS_MANAGE);
+  }
+
+  canAssignOrder(userRole = '', userPermissions = []) {
+    if (isAdminRole(userRole)) return true;
+    return Array.isArray(userPermissions) && userPermissions.includes(PERMISSIONS.SERVICE_ORDER_ASSIGN);
+  }
+
+  canUpdateChecklist(userRole = '', userPermissions = []) {
+    if (isAdminRole(userRole)) return true;
+    return Array.isArray(userPermissions) && userPermissions.includes(PERMISSIONS.SERVICE_ORDER_CHECKLIST_UPDATE);
+  }
+
+  canUpdateStage(userRole = '', userPermissions = []) {
+    if (isAdminRole(userRole)) return true;
+    return Array.isArray(userPermissions) && userPermissions.includes(PERMISSIONS.SERVICE_ORDER_STAGE_UPDATE);
+  }
+
   async refreshFileSummary(order, userId = null) {
     if (!order?.file_id) return;
     await bookingFileSummaryService.recalculateFileSummary(String(order.file_id), { updatedBy: userId });
@@ -53,12 +80,11 @@ class ServiceOrderService {
 
   canManageOrderByRole(order, userRole) {
     if (!userRole) return false;
-    const allowedAreas = ROLE_ALLOWED_AREAS[userRole] || [];
-    return allowedAreas.includes(order.area);
+    return canAccessServiceOrderArea(userRole, order.area);
   }
 
   getAllowedAreasByRole(userRole) {
-    return ROLE_ALLOWED_AREAS[userRole] || [];
+    return getServiceOrderAreasForRole(userRole);
   }
 
   async list({ page = 1, pageSize = 20, area = '', status = '', contactId = '', assigneeId = '', type = '', userRole = '' }) {
@@ -104,7 +130,7 @@ class ServiceOrderService {
     return ServiceOrder.find(query).sort({ createdAt: -1 }).lean();
   }
 
-  async updateStatus({ id, status, reason = '', userId = null, userRole = '' }) {
+  async updateStatus({ id, status, reason = '', userId = null, userRole = '', userPermissions = [] }) {
     const order = await ServiceOrder.findById(id);
     if (!order) return null;
 
@@ -112,8 +138,8 @@ class ServiceOrderService {
       throw new Error('You do not have permissions to update this order');
     }
 
-    if (status === 'CANCELLED' && !['admin', 'ventas'].includes(userRole)) {
-      throw new Error('Only admin or ventas can cancel orders');
+    if (status === 'CANCELLED' && !this.canCancelOrder(userRole, userPermissions)) {
+      throw new Error('You do not have permissions to cancel orders');
     }
 
     const previousStatus = order.status;
@@ -159,11 +185,11 @@ class ServiceOrderService {
     return order.toObject();
   }
 
-  async assign({ id, assigneeId, userId = null, userRole = '' }) {
+  async assign({ id, assigneeId, userId = null, userRole = '', userPermissions = [] }) {
     const order = await ServiceOrder.findById(id);
     if (!order) return null;
 
-    if (!this.canManageOrderByRole(order, userRole)) {
+    if (!this.canAssignOrder(userRole, userPermissions)) {
       throw new Error('You do not have permissions to assign this order');
     }
 
@@ -180,11 +206,11 @@ class ServiceOrderService {
     return order.toObject();
   }
 
-  async updateChecklistItem({ id, itemId, done, userId = null, userRole = '' }) {
+  async updateChecklistItem({ id, itemId, done, userId = null, userRole = '', userPermissions = [] }) {
     const order = await ServiceOrder.findById(id);
     if (!order) return null;
 
-    if (!this.canManageOrderByRole(order, userRole)) {
+    if (!this.canUpdateChecklist(userRole, userPermissions)) {
       throw new Error('You do not have permissions to update this order');
     }
 
@@ -219,11 +245,11 @@ class ServiceOrderService {
     return order.toObject();
   }
 
-  async updateStage({ id, stageCode, comment = '', userId = null, userRole = '' }) {
+  async updateStage({ id, stageCode, comment = '', userId = null, userRole = '', userPermissions = [] }) {
     const order = await ServiceOrder.findById(id);
     if (!order) return null;
 
-    if (!this.canManageOrderByRole(order, userRole)) {
+    if (!this.canUpdateStage(userRole, userPermissions)) {
       throw new Error('You do not have permissions to update this order');
     }
 
@@ -297,11 +323,11 @@ class ServiceOrderService {
     return order.toObject();
   }
 
-  async updateFinancials({ id, payload = {}, userId = null, userRole = '' }) {
+  async updateFinancials({ id, payload = {}, userId = null, userRole = '', userPermissions = [] }) {
     const order = await ServiceOrder.findById(id);
     if (!order) return null;
 
-    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+    if (!this.canManageFinancials(userRole, userPermissions)) {
       throw new Error('You do not have permissions to update financials for this order');
     }
 
@@ -321,11 +347,11 @@ class ServiceOrderService {
     return order.toObject();
   }
 
-  async addAttachment({ id, payload = {}, userId = null, userRole = '' }) {
+  async addAttachment({ id, payload = {}, userId = null, userRole = '', userPermissions = [] }) {
     const order = await ServiceOrder.findById(id);
     if (!order) return null;
 
-    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+    if (!this.canManageAttachments(userRole, userPermissions)) {
       throw new Error('You do not have permissions to attach files to this order');
     }
 
@@ -364,11 +390,11 @@ class ServiceOrderService {
     return order.toObject();
   }
 
-  async removeAttachment({ id, attachmentId, userId = null, userRole = '' }) {
+  async removeAttachment({ id, attachmentId, userId = null, userRole = '', userPermissions = [] }) {
     const order = await ServiceOrder.findById(id);
     if (!order) return null;
 
-    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+    if (!this.canManageAttachments(userRole, userPermissions)) {
       throw new Error('You do not have permissions to remove attachments from this order');
     }
 
@@ -389,19 +415,19 @@ class ServiceOrderService {
     return order.toObject();
   }
 
-  async canManageById(id, userRole = '') {
+  async canManageById(id, userRole = '', userPermissions = []) {
     const order = await ServiceOrder.findById(id).select('_id area').lean();
     if (!order) return null;
-    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+    if (!this.canManageAttachments(userRole, userPermissions)) {
       throw new Error('You do not have permissions to manage this order');
     }
     return order;
   }
 
-  async getAttachmentById(id, attachmentId, userRole = '') {
+  async getAttachmentById(id, attachmentId, userRole = '', userPermissions = []) {
     const order = await ServiceOrder.findById(id).lean();
     if (!order) return null;
-    if (!this.canManageOrderByRole(order, userRole) && !['admin', 'contabilidad', 'pagos'].includes(userRole)) {
+    if (!this.canManageAttachments(userRole, userPermissions)) {
       throw new Error('You do not have permissions to manage this order');
     }
     const attachment = (order.attachments || []).find((item) => item.attachmentId === attachmentId);

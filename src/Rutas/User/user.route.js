@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const JWT_SECRET = 'secretKey'
 require('dotenv').config()
 const  {authenticate, authorize} = require('../../middlewares/auth');
+const { normalizePermissions } = require('../../security/permissions');
 const SALT_ROUNDS = 10;
 
 // Registro
@@ -39,7 +40,7 @@ router.post('/login',  async (req, res) => {
      if (!isPasswordValid) return res.status(401).json({ error: 'Credenciales inválidas' });
   
      const roleData = await Role.findOne({name: user.role}) 
-     const permissions = roleData ? roleData.permissions : [];
+     const permissions = normalizePermissions(roleData ? roleData.permissions : []);
 
      const token = jwt.sign({ id: user._id , role: user.role, username: user.name,email:user.username,permissions }, process.env.JWT_SECRET);
 
@@ -60,10 +61,18 @@ router.post('/login',  async (req, res) => {
 });
 
 router.patch('/update-user/:id', authenticate, async (req, res) => {
-    const { name } = req.body;
     try {
-        const updatedUser = await User.findByIdAndUpdate(req.params.id,req.body, { new: true, select: '-password' });
-        //select: '-password' }
+        const payload = { ...req.body };
+
+        if (Object.prototype.hasOwnProperty.call(payload, 'password')) {
+            if (String(payload.password || '').trim()) {
+                payload.password = await bcrypt.hash(String(payload.password), parseInt(process.env.SALT_ROUNDS, 10));
+            } else {
+                delete payload.password;
+            }
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(req.params.id, payload, { new: true, select: '-password' });
         if (!updatedUser) return res.status(404).json({ error: 'Usuario no encontrado' });
 
         res.status(200).json({ message: 'Usuario actualizado', usuario: updatedUser });
@@ -74,8 +83,7 @@ router.patch('/update-user/:id', authenticate, async (req, res) => {
 
 router.get('/all-users', authenticate, async (req, res) => {
     try {
-        const users = await User.find(); // Excluir contraseñas de la respuesta
-      //  const users = await User.find({}, '-password'); 
+        const users = await User.find({}, '-password');
         res.status(200).json(users);
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener usuarios', details: error });

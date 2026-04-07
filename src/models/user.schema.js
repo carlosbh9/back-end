@@ -7,7 +7,6 @@ const userSchema = Schema({
   role: { type: String },
   image: { type: String, default: 'default.jpg' }, // URL de la imagen del usuario
   name: { type: String, required: true }
- // contacts: [{ type: Schema.Types.ObjectId, ref: 'Contact' }] 
 },{ timestamps: true });
 
 // userSchema.pre('save', async function (next) {
@@ -15,7 +14,8 @@ const userSchema = Schema({
 //   this.password = await bcrypt.hash(this.password, 10); // Encriptar contraseña
 //   next();
 // });
-//role: { type: String, enum: ['admin', 'TD', 'OPE','ventas'], default: 'viewer' },
+// Contacts are owned from the Contact collection through `owner`.
+// Keep this as a virtual relation only; do not persist contact ids inside User.
 userSchema.virtual('contacts', {
   ref:          'Contact',
   localField:   '_id',

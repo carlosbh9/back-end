@@ -32,9 +32,6 @@ function routes(app){
     route.use('/service-orders', serviceOrdersRoute)
     route.use('/service-order-templates', serviceOrderTemplatesRoute)
     route.use('/booking-files', bookingFilesRoute)
-    // route.use('/',authenticate,roleFilterMiddleware)
-
-
 }
 
 module.exports = routes;

@@ -34,7 +34,7 @@ const quoter = new Schema({
 //   },{ timestamps: true });
   
 const contactSchema = new Schema({
-  name:  { type: String, required: true, unique: true, trim: true },
+  name:  { type: String, required: true, trim: true },
   td_designed: {type:String},
   phone: String,
   email: String,
@@ -56,6 +56,8 @@ const contactSchema = new Schema({
   },
    cotizations: [quoter] 
 }, { timestamps: true });
+
+contactSchema.index({ owner: 1, name: 1 }, { unique: true });
 
 
   module.exports = mongoose.model('Contact', contactSchema);
