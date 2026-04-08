@@ -53,6 +53,18 @@ function normalizeCotizationStatus(contact, soldQuoterId) {
   });
 }
 
+function deriveContactStatusFromCotizations(cotizations = []) {
+  const statuses = Array.isArray(cotizations)
+    ? cotizations.map((item) => String(item?.status || '').toUpperCase())
+    : [];
+
+  if (statuses.includes('SOLD')) return 'SOLD';
+  if (statuses.includes('WIP')) return 'WIP';
+  if (statuses.includes('HOLD')) return 'HOLD';
+  if (statuses.includes('LOST')) return 'LOST';
+  return 'WIP';
+}
+
 async function resolveContactForQuote(body = {}, user = null) {
   if (body.contact_id) {
     const contact = await findAccessibleContactById(body.contact_id, user, '_id owner');
@@ -297,6 +309,101 @@ class QuoterV2Controller {
     }
   }
 
+  async revertSale(req, res) {
+    try {
+      const targetStatus = String(req.body?.targetStatus || '').toUpperCase();
+      if (!['WIP', 'HOLD', 'LOST'].includes(targetStatus)) {
+        return res.status(400).json({ message: 'targetStatus must be WIP, HOLD, or LOST' });
+      }
+
+      const quoter = await QuoterV2.findById(req.params.id);
+      if (!quoter) {
+        return res.status(404).json({ message: 'Quoter V2 not found' });
+      }
+
+      if (quoter.status !== 'SOLD') {
+        return res.status(400).json({ message: 'Only sold quoters can be reverted with this action' });
+      }
+
+      const contact = await Contact.findById(quoter.contact_id);
+      if (!contact) {
+        return res.status(400).json({ message: 'Contact not found for this quoter' });
+      }
+
+      const changedBy = req.user?.id || null;
+      const now = new Date();
+      const reason = String(req.body?.reason || '').trim() || `Quote reverted from SOLD to ${targetStatus}`;
+      const bookingFile = quoter.booking_file_id
+        ? await BookingFile.findById(quoter.booking_file_id)
+        : await BookingFile.findOne({ quoter_id: quoter._id });
+
+      const businessEventId = serviceOrderOrchestrator.buildBusinessEventId({
+        contactId: String(contact._id),
+        soldQuoterId: String(quoter._id)
+      });
+
+      await serviceOrderOrchestrator.cancelOrdersForBusinessEvent({
+        businessEventId,
+        reason,
+        changedBy
+      });
+
+      if (bookingFile) {
+        bookingFile.is_cancelled = true;
+        bookingFile.cancel_reason = reason;
+        bookingFile.cancelled_at = now;
+        bookingFile.overall_status = 'CANCELLED';
+        bookingFile.operations_status = 'CANCELLED';
+        bookingFile.reservations_status = 'CANCELLED';
+        bookingFile.payments_status = 'CANCELLED';
+        bookingFile.deliverables_status = 'CANCELLED';
+        bookingFile.last_activity_at = now;
+        bookingFile.updatedBy = changedBy;
+        if (bookingFile.sales_snapshot && typeof bookingFile.sales_snapshot === 'object') {
+          bookingFile.sales_snapshot = {
+            ...bookingFile.sales_snapshot,
+            status: 'CANCELLED',
+            cancelledAt: now.toISOString(),
+            cancelReason: reason
+          };
+        }
+        await bookingFile.save();
+      }
+
+      quoter.status = 'CANCELLED';
+      quoter.soldAt = null;
+      quoter.soldBy = null;
+      await quoter.save();
+
+      if (Array.isArray(contact.cotizations)) {
+        contact.cotizations = contact.cotizations.map((item) => {
+          const source = item.toObject ? item.toObject() : item;
+          if (String(source.quoter_id) !== String(quoter._id)) {
+            return source;
+          }
+          return {
+            ...source,
+            status: targetStatus
+          };
+        });
+      }
+
+      if (String(contact.soldQuoterId || '') === String(quoter._id)) {
+        contact.soldQuoterId = null;
+      }
+      contact.status = deriveContactStatusFromCotizations(contact.cotizations || []);
+      await contact.save();
+
+      return res.status(200).json({
+        message: `Sale reverted to ${targetStatus}`,
+        quoter,
+        contact,
+        bookingFile
+      });
+    } catch (error) {
+      return res.status(500).json({ message: 'Error reverting sale', error: error.message });
+    }
+  }
   async calculatePrices(req, res) {
     try {
       const body = req.body || {};
@@ -313,3 +420,4 @@ class QuoterV2Controller {
 }
 
 module.exports = new QuoterV2Controller();
+

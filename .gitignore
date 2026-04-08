@@ -39,6 +39,8 @@ e2e/*.map
 ### Linux ###
 *~
 
+.codex
+
 # temporary files which can be created if a process still has a handle open of a deleted file
 .fuse_hidden*
 
@@ -249,3 +251,5 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/dotenv,windows,linux,macos,node,angular
+
+.gitignore

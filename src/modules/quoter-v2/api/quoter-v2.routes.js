@@ -11,5 +11,7 @@ router.patch('/quoters/:id', (req, res) => controller.update(req, res));
 router.delete('/quoters/:id', (req, res) => controller.remove(req, res));
 router.post('/quoters/:id/confirm-sale', (req, res) => controller.confirmSale(req, res));
 router.post('/calculate-prices', (req, res) => controller.calculatePrices(req, res));
+router.post('/quoters/:id/revert-sale', (req, res) => controller.revertSale(req, res));
 
 module.exports = router;
+
