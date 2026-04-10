@@ -1,5 +1,6 @@
 const quoterV2Service = require('../application/services/quoter-v2.service');
 const quoterV2PricingService = require('../application/services/quoter-v2-pricing.service');
+const quoterV2ReviewService = require('../application/services/quoter-v2-review.service');
 const { QUOTE_V2_STATUSES, QUOTER_V2_SORT_FIELDS } = require('../domain/quoter-v2.types');
 const QuoterV2 = require('../infrastructure/mongoose/quoter-v2.schema');
 const Contact = require('../../../models/contact.schema');
@@ -404,6 +405,27 @@ class QuoterV2Controller {
       return res.status(500).json({ message: 'Error reverting sale', error: error.message });
     }
   }
+  async reviewQuote(req, res) {
+    try {
+      const result = await quoterV2ReviewService.reviewQuote(req.params.id);
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error.message === 'QUOTER_V2_NOT_FOUND') {
+        return res.status(404).json({ message: 'Quoter V2 not found' });
+      }
+
+      if (error.code === 'OPENAI_NOT_CONFIGURED') {
+        return res.status(503).json({ message: 'OpenAI review is not configured', error: error.message });
+      }
+
+      if (error.code === 'OPENAI_TIMEOUT') {
+        return res.status(504).json({ message: 'OpenAI review timed out', error: error.message });
+      }
+
+      return res.status(500).json({ message: error.message || 'Error reviewing quoter v2', error: error.message });
+    }
+  }
+
   async calculatePrices(req, res) {
     try {
       const body = req.body || {};
@@ -420,4 +442,7 @@ class QuoterV2Controller {
 }
 
 module.exports = new QuoterV2Controller();
+
+
+
 

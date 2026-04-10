@@ -58,14 +58,31 @@ function findChildPolicyPrice(basePrice, age, childPolicies = []) {
     const maxOk = maxAge === null || age <= maxAge;
     return minOk && maxOk;
   });
-
   if (!policy) return basePrice;
   if (policy.priceType === 'FIXED') return toNumber(policy.value);
   if (policy.priceType === 'PER_PERSON') return toNumber(policy.value);
   if (policy.priceType === 'DISCOUNT_PERCENT') return Math.max(basePrice - (basePrice * toNumber(policy.value) / 100), 0);
   return basePrice;
 }
-
+function buildChildPricingSummary(basePrice, childrenAges = [], childPolicies = [], overrideChildUnit = null) {
+  const details = childrenAges.map((age) => {
+    const unitPrice = overrideChildUnit !== null && overrideChildUnit !== undefined
+      ? toNumber(overrideChildUnit, 0)
+      : findChildPolicyPrice(basePrice, age, childPolicies);
+    return {
+      age,
+      unitPrice: Math.max(toNumber(unitPrice, 0), 0),
+    };
+  });
+  return {
+    details,
+    count: details.filter((item) => item.unitPrice > 0).length,
+    total: details.reduce((sum, item) => sum + item.unitPrice, 0),
+  };
+}
+function shouldSplitKidsLine(tariffItem) {
+  return tariffItem?.type === 'ENTRANCE' || tariffItem?.category === 'ENTRANCE';
+}
 function resolveSpecialDateAmount(baseAmount, pricingDate, validity = {}, alerts = []) {
   if (!pricingDate) return baseAmount;
 
@@ -203,6 +220,12 @@ function calculateTariffPricing(tariffItem, context) {
   const pricingMeta = {
     auto_vehicle_type: '',
     alerts: [],
+    child_pricing: {
+      has_children: false,
+      split_kids_line: false,
+      child_count: 0,
+      child_total: 0,
+    },
   };
   const numberPaxs = Math.max(toNumber(context.number_paxs), 0);
   const childrenAges = Array.isArray(context.children_ages) ? context.children_ages.map((age) => toNumber(age, 0)) : [];
@@ -215,6 +238,7 @@ function calculateTariffPricing(tariffItem, context) {
 
   let priceBase = toNumber(pricing.basePrice, 0);
   let price = 0;
+  let childPricing = { count: 0, total: 0, details: [] };
 
   ensureDateWithinValidity(pricingDate, tariffItem.validity);
 
@@ -223,8 +247,8 @@ function calculateTariffPricing(tariffItem, context) {
       ? toNumber(pricing.soloTravelerPrice, 0)
       : toNumber(pricing.basePrice, 0);
     priceBase = resolveSpecialDateAmount(baseUnit, pricingDate, tariffItem.validity, alerts);
-    const childTotal = childrenAges.reduce((sum, age) => sum + findChildPolicyPrice(priceBase, age, tariffItem.childPolicies), 0);
-    price = adults * priceBase + childTotal;
+    childPricing = buildChildPricingSummary(priceBase, childrenAges, tariffItem.childPolicies);
+    price = adults * priceBase + childPricing.total;
   } else if (pricing.mode === 'PER_GROUP') {
     const baseGroupPrice = numberPaxs === 1 && pricing.soloTravelerPrice !== null && pricing.soloTravelerPrice !== undefined
       ? toNumber(pricing.soloTravelerPrice, 0)
@@ -263,12 +287,9 @@ function calculateTariffPricing(tariffItem, context) {
     }
     priceBase = resolveSpecialDateAmount(toNumber(season.adultPrice, 0), pricingDate, tariffItem.validity, alerts);
     const childUnit = season.childPrice ?? null;
-    const childTotal = childrenAges.reduce((sum, age) => {
-      if (childUnit !== null && childUnit !== undefined) return sum + toNumber(childUnit, 0);
-      return sum + findChildPolicyPrice(priceBase, age, tariffItem.childPolicies);
-    }, 0);
+    childPricing = buildChildPricingSummary(priceBase, childrenAges, tariffItem.childPolicies, childUnit);
     const guideTotal = guideCount > 0 ? toNumber(season.guidePrice, 0) * guideCount : 0;
-    price = adults * priceBase + childTotal + guideTotal;
+    price = adults * priceBase + childPricing.total + guideTotal;
   } else if (pricing.mode === 'CUSTOM') {
     if (Array.isArray(pricing.vehicleRates) && pricing.vehicleRates.length > 0) {
       if (!vehicleType && requiresVehicleSelection(pricing)) {
@@ -289,8 +310,31 @@ function calculateTariffPricing(tariffItem, context) {
     throw new Error(`Unsupported pricing mode ${pricing.mode}`);
   }
 
+  const splitKidsLine = shouldSplitKidsLine(tariffItem) && childPricing.total > 0;
+  if (splitKidsLine) {
+    price = Math.max(price - childPricing.total, 0);
+    alerts.push('Child pricing moved to separate ' + tariffItem.name + ' KIDS line');
+  }
   pricingMeta.alerts = [...alerts];
-  return { price_base: priceBase, price, alerts, pricing_meta: pricingMeta };
+  pricingMeta.child_pricing = {
+    has_children: childrenAges.length > 0,
+    split_kids_line: splitKidsLine,
+    child_count: childPricing.count,
+    child_total: childPricing.total,
+  };
+  return {
+    price_base: priceBase,
+    price,
+    alerts,
+    pricing_meta: pricingMeta,
+    child_line: splitKidsLine
+      ? {
+          price_base: childPricing.total,
+          price: childPricing.total,
+          child_count: childPricing.count,
+        }
+      : null,
+  };
 }
 
 function buildEmptyQuotePayload(context) {
@@ -381,7 +425,6 @@ function buildTotals(payload) {
 function mapTariffItemToQuoteSection(payload, source, tariffItem, pricingResult, context) {
   const commonDate = context.itemDate || '';
   const commonNotes = source.notes || tariffItem.notes || '';
-
   if (tariffItem.type === 'HOTEL') {
     payload.hotels.push({
       day: source.dayNumber,
@@ -397,21 +440,52 @@ function mapTariffItemToQuoteSection(payload, source, tariffItem, pricingResult,
     });
     return;
   }
-
   const day = ensureServiceDay(payload, source.dayNumber, commonDate, payload.number_paxs, payload.children_ages);
-  day.services.push({
-    city: source.city || tariffItem.city || '',
-    name_service: source.title || tariffItem.name,
-    type: tariffItem.type,
-    price_base: pricingResult.price_base,
-    price: pricingResult.price,
-    notes: commonNotes,
-    tariff_item_id: tariffItem._id,
-    placement: source.placement,
-    pricing_meta: pricingResult.pricing_meta || { auto_vehicle_type: '', alerts: [] },
-  });
+  const serviceCity = source.city || tariffItem.city || '';
+  const serviceName = source.title || tariffItem.name;
+  const defaultPricingMeta = {
+    auto_vehicle_type: '',
+    alerts: [],
+    child_pricing: {
+      has_children: false,
+      split_kids_line: false,
+      child_count: 0,
+      child_total: 0,
+    },
+  };
+  if (pricingResult.price > 0 || !pricingResult.child_line) {
+    day.services.push({
+      city: serviceCity,
+      name_service: serviceName,
+      type: tariffItem.type,
+      price_base: pricingResult.price_base,
+      price: pricingResult.price,
+      notes: commonNotes,
+      tariff_item_id: tariffItem._id,
+      placement: source.placement,
+      pricing_meta: pricingResult.pricing_meta || defaultPricingMeta,
+    });
+  }
+  if (pricingResult.child_line) {
+    day.services.push({
+      city: serviceCity,
+      name_service: serviceName + ' KIDS',
+      type: tariffItem.type,
+      price_base: pricingResult.child_line.price_base,
+      price: pricingResult.child_line.price,
+      notes: commonNotes,
+      tariff_item_id: tariffItem._id,
+      placement: source.placement,
+      pricing_meta: {
+        ...(pricingResult.pricing_meta || defaultPricingMeta),
+        child_pricing: {
+          ...((pricingResult.pricing_meta || defaultPricingMeta).child_pricing || {}),
+          generated_kids_line: true,
+        },
+      },
+    });
+  }
 }
-
 class QuoterV2PricingService {
   async calculatePrices(payload = {}) {
     const quotePayload = buildEmptyQuotePayload(payload);
