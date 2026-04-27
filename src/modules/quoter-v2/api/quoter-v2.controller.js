@@ -10,10 +10,129 @@ const serviceOrderOrchestrator = require('../../../Services/service-orders/servi
 const bookingFileSummaryService = require('../../../Services/booking-files/booking-file-summary.service');
 const { buildOperationalItineraryFromSnapshot } = require('../../../Services/booking-files/booking-file-operational-itinerary.service');
 const bookingFileSaleNotificationService = require('../../../Services/booking-files/booking-file-sale-notification.service');
+const tariffV2Service = require('../../tariff-v2/application/services/tariff-v2.service');
 const {
   buildContactAccessFilter,
-  findAccessibleContactById
+  findAccessibleContactById,
 } = require('../../../Services/contacts/contact-access.service');
+const { createHttpError, sendError } = require('../../../utils/httpError');
+const { createValidator, isPlainObject, isValidObjectId } = require('../../../utils/requestValidation');
+
+const CONTACT_STATUSES = ['WIP', 'HOLD', 'SOLD', 'LOST'];
+
+function validateTravelDate(travelDate, validator, field = 'travelDate') {
+  validator.optionalObject(field, travelDate);
+  if (!isPlainObject(travelDate)) {
+    return;
+  }
+
+  validator.optionalDate(`${field}.start`, travelDate.start, { allowEmpty: true });
+  validator.optionalDate(`${field}.end`, travelDate.end, { allowEmpty: true });
+}
+
+function validateQuoterPayload(body, { partial = false } = {}) {
+  const validator = createValidator({
+    message: partial ? 'Invalid quoter update payload' : 'Invalid quoter payload',
+    errorCode: partial ? 'QUOTER_V2_UPDATE_VALIDATION_FAILED' : 'QUOTER_V2_CREATE_VALIDATION_FAILED',
+  });
+
+  validator.requirePlainObject('body', body);
+  if (!isPlainObject(body)) {
+    validator.assert();
+    return;
+  }
+
+  if (partial && !Object.keys(body).length) {
+    validator.addIssue('body', 'body must not be empty');
+  }
+
+  if (!partial || Object.prototype.hasOwnProperty.call(body, 'contact_id') || Object.prototype.hasOwnProperty.call(body, 'guest')) {
+    validator.requireAtLeastOne(['contact_id', 'guest'], body);
+  }
+
+  validator.optionalObjectId('contact_id', body.contact_id);
+  validator.optionalString('guest', body.guest, { allowEmpty: false });
+  validator.optionalString('name_quoter', body.name_quoter);
+  validator.optionalString('accomodations', body.accomodations);
+  validator.optionalString('totalNights', body.totalNights);
+  validator.optionalString('travel_agent', body.travel_agent);
+  validator.optionalString('exchange_rate', body.exchange_rate);
+  validator.optionalNumber('number_paxs', body.number_paxs, { min: 0 });
+  validator.optionalNumberArray('children_ages', body.children_ages, { min: 0 });
+  validator.optionalStringArray('destinations', body.destinations);
+  validator.optionalArray('services', body.services);
+  validator.optionalArray('hotels', body.hotels);
+  validator.optionalArray('flights', body.flights);
+  validator.optionalArray('operators', body.operators);
+  validator.optionalArray('cruises', body.cruises);
+  validator.optionalObject('total_prices', body.total_prices);
+
+  validateTravelDate(body.travelDate, validator);
+  validator.assert();
+}
+
+function validateConfirmSalePayload(body) {
+  const validator = createValidator({
+    message: 'Invalid confirm sale payload',
+    errorCode: 'QUOTER_V2_CONFIRM_SALE_VALIDATION_FAILED',
+  });
+
+  validator.requirePlainObject('body', body);
+  if (!isPlainObject(body)) {
+    validator.assert();
+    return;
+  }
+
+  validator.optionalString('fileCode', body.fileCode, { allowEmpty: false });
+  validator.optionalStringArray('notifyEmails', body.notifyEmails);
+  if (Array.isArray(body.notifyEmails)) {
+    body.notifyEmails.forEach((email, index) => {
+      if (typeof email !== 'string' || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        validator.addIssue(`notifyEmails[${index}]`, `notifyEmails[${index}] must be a valid email`, email);
+      }
+    });
+  }
+  validator.optionalObjectIdArray('notifyUserIds', body.notifyUserIds);
+  validator.assert();
+}
+
+function validateRevertSalePayload(body) {
+  const validator = createValidator({
+    message: 'Invalid revert sale payload',
+    errorCode: 'QUOTER_V2_REVERT_SALE_VALIDATION_FAILED',
+  });
+
+  validator.requirePlainObject('body', body);
+  if (!isPlainObject(body)) {
+    validator.assert();
+    return;
+  }
+
+  validator.requireNonEmptyString('targetStatus', body.targetStatus);
+  validator.optionalEnum('targetStatus', body.targetStatus, CONTACT_STATUSES);
+  validator.optionalString('reason', body.reason);
+  validator.assert();
+}
+
+function validateCalculatePricesPayload(body) {
+  const validator = createValidator({
+    message: 'Invalid calculate prices payload',
+    errorCode: 'QUOTER_V2_PRICE_CALCULATION_VALIDATION_FAILED',
+  });
+
+  validator.requirePlainObject('body', body);
+  if (!isPlainObject(body)) {
+    validator.assert();
+    return;
+  }
+
+  validator.optionalNumber('number_paxs', body.number_paxs, { min: 1 });
+  validator.optionalNumberArray('children_ages', body.children_ages, { min: 0 });
+  validator.optionalObjectId('masterQuoterId', body.masterQuoterId);
+  validator.optionalArray('items', body.items);
+  validator.requireAtLeastOne(['masterQuoterId', 'items'], body);
+  validator.assert();
+}
 
 function normalizeFileCode(value = '') {
   return String(value).trim().toUpperCase();
@@ -29,6 +148,223 @@ function normalizeStringList(values = []) {
     .filter(Boolean);
 }
 
+function normalizeLineContract(item) {
+  if (!isPlainObject(item)) {
+    return item;
+  }
+
+  const normalized = { ...item };
+  if (!Object.prototype.hasOwnProperty.call(normalized, 'price_base')
+    && Object.prototype.hasOwnProperty.call(normalized, 'price_conf')) {
+    normalized.price_base = normalized.price_conf;
+  }
+
+  delete normalized.price_conf;
+  return normalized;
+}
+
+function normalizeTariffItemId(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized || null;
+}
+
+function normalizeServiceContract(item) {
+  const normalized = normalizeLineContract(item);
+  if (!isPlainObject(normalized)) {
+    return normalized;
+  }
+
+  const tariffItemId = normalizeTariffItemId(normalized.tariff_item_id);
+  if (tariffItemId) {
+    normalized.tariff_item_id = tariffItemId;
+  } else {
+    delete normalized.tariff_item_id;
+  }
+
+  return normalized;
+}
+
+function normalizeHotelContract(item) {
+  if (!isPlainObject(item)) {
+    return item;
+  }
+
+  const normalized = { ...item };
+  const tariffItemId = normalizeTariffItemId(normalized.tariff_item_id);
+  if (tariffItemId) {
+    normalized.tariff_item_id = tariffItemId;
+  } else {
+    delete normalized.tariff_item_id;
+  }
+
+  if (tariffItemId && !normalized.price_source) {
+    normalized.price_source = 'tariff';
+  }
+
+  return normalized;
+}
+
+function normalizeOperatorContract(item) {
+  if (!isPlainObject(item)) {
+    return item;
+  }
+
+  const normalized = { ...item };
+  const tariffItemId = normalizeTariffItemId(normalized.tariff_item_id);
+  if (tariffItemId) {
+    normalized.tariff_item_id = tariffItemId;
+  } else {
+    delete normalized.tariff_item_id;
+  }
+
+  return normalized;
+}
+
+function collectTariffReferences(body = {}) {
+  const references = [];
+
+  (body.services || []).forEach((day, dayIndex) => {
+    if (!isPlainObject(day) || !Array.isArray(day.services)) {
+      return;
+    }
+
+    day.services.forEach((service, serviceIndex) => {
+      const tariffItemId = normalizeTariffItemId(service?.tariff_item_id);
+      if (!tariffItemId) {
+        return;
+      }
+
+      references.push({
+        section: 'services',
+        path: `services[${dayIndex}].services[${serviceIndex}].tariff_item_id`,
+        tariff_item_id: tariffItemId,
+      });
+    });
+  });
+
+  (body.hotels || []).forEach((hotel, hotelIndex) => {
+    const tariffItemId = normalizeTariffItemId(hotel?.tariff_item_id);
+    if (!tariffItemId) {
+      return;
+    }
+
+    references.push({
+      section: 'hotels',
+      path: `hotels[${hotelIndex}].tariff_item_id`,
+      tariff_item_id: tariffItemId,
+    });
+  });
+
+  (body.operators || []).forEach((operator, operatorIndex) => {
+    const tariffItemId = normalizeTariffItemId(operator?.tariff_item_id);
+    if (!tariffItemId) {
+      return;
+    }
+
+    references.push({
+      section: 'operators',
+      path: `operators[${operatorIndex}].tariff_item_id`,
+      tariff_item_id: tariffItemId,
+    });
+  });
+
+  return references;
+}
+
+async function assertValidTariffReferences(body = {}) {
+  const references = collectTariffReferences(body);
+  if (!references.length) {
+    return;
+  }
+
+  const invalidIdReferences = references.filter((reference) => !isValidObjectId(reference.tariff_item_id));
+  if (invalidIdReferences.length) {
+    throw createHttpError(
+      400,
+      'Quoter contains invalid tariff references',
+      'QUOTER_V2_INVALID_TARIFF_REFERENCES',
+      {
+        invalidTariffReferences: invalidIdReferences.map((reference) => ({
+          section: reference.section,
+          path: reference.path,
+          tariff_item_id: reference.tariff_item_id,
+          reason: 'INVALID_ID',
+        })),
+      },
+    );
+  }
+
+  const existingTariffItems = await tariffV2Service.findExistingItemsByIds(
+    references.map((reference) => reference.tariff_item_id),
+  );
+  const existingTariffIds = new Set(existingTariffItems.map((item) => String(item._id)));
+
+  const missingReferences = references.filter((reference) => !existingTariffIds.has(reference.tariff_item_id));
+  if (missingReferences.length) {
+    throw createHttpError(
+      400,
+      'Quoter contains tariff references that do not exist',
+      'QUOTER_V2_INVALID_TARIFF_REFERENCES',
+      {
+        invalidTariffReferences: missingReferences.map((reference) => ({
+          section: reference.section,
+          path: reference.path,
+          tariff_item_id: reference.tariff_item_id,
+          reason: 'NOT_FOUND',
+        })),
+      },
+    );
+  }
+}
+
+function normalizeQuoterContract(body = {}) {
+  if (!isPlainObject(body)) {
+    return body;
+  }
+
+  const normalized = { ...body };
+  if (!normalized.name_quoter && normalized.name_version) {
+    normalized.name_quoter = normalized.name_version;
+  }
+
+  delete normalized.name_version;
+
+  if (Array.isArray(normalized.flights)) {
+    normalized.flights = normalized.flights.map(normalizeLineContract);
+  }
+
+  if (Array.isArray(normalized.cruises)) {
+    normalized.cruises = normalized.cruises.map(normalizeLineContract);
+  }
+
+  if (Array.isArray(normalized.services)) {
+    normalized.services = normalized.services.map((day) => {
+      if (!isPlainObject(day)) {
+        return day;
+      }
+
+      return {
+        ...day,
+        services: Array.isArray(day.services) ? day.services.map(normalizeServiceContract) : day.services,
+      };
+    });
+  }
+
+  if (Array.isArray(normalized.hotels)) {
+    normalized.hotels = normalized.hotels.map(normalizeHotelContract);
+  }
+
+  if (Array.isArray(normalized.operators)) {
+    normalized.operators = normalized.operators.map(normalizeOperatorContract);
+  }
+
+  return normalized;
+}
+
 function buildBookingSnapshot(quoter) {
   return {
     services: quoter.services || [],
@@ -36,7 +372,7 @@ function buildBookingSnapshot(quoter) {
     flights: quoter.flights || [],
     operators: quoter.operators || [],
     cruises: quoter.cruises || [],
-    total_prices: quoter.total_prices || {}
+    total_prices: quoter.total_prices || {},
   };
 }
 
@@ -49,7 +385,7 @@ function normalizeCotizationStatus(contact, soldQuoterId) {
     const source = item.toObject ? item.toObject() : item;
     return {
       ...source,
-      status: String(source.quoter_id) === String(soldQuoterId) ? 'SOLD' : 'WIP'
+      status: String(source.quoter_id) === String(soldQuoterId) ? 'SOLD' : 'WIP',
     };
   });
 }
@@ -70,7 +406,7 @@ async function resolveContactForQuote(body = {}, user = null) {
   if (body.contact_id) {
     const contact = await findAccessibleContactById(body.contact_id, user, '_id owner');
     if (!contact) {
-      throw new Error('contact_id is invalid or not accessible for this user');
+      throw createHttpError(400, 'contact_id is invalid or not accessible for this user', 'QUOTER_V2_CONTACT_INVALID');
     }
 
     return contact._id;
@@ -78,13 +414,13 @@ async function resolveContactForQuote(body = {}, user = null) {
 
   const guestName = String(body.guest || '').trim();
   if (!guestName) {
-    throw new Error('guest is required');
+    throw createHttpError(400, 'guest is required', 'QUOTER_V2_GUEST_REQUIRED');
   }
 
   let contact = await Contact.findOne(buildContactAccessFilter(user, { name: guestName })).select('_id owner');
   if (!contact) {
     if (!user?.id) {
-      throw new Error('contact_id or authenticated user is required');
+      throw createHttpError(400, 'contact_id or authenticated user is required', 'QUOTER_V2_CONTACT_REQUIRED');
     }
 
     contact = await Contact.create({
@@ -112,76 +448,122 @@ class QuoterV2Controller {
       const result = await quoterV2Service.list(req.query);
       return res.status(200).json(result);
     } catch (error) {
-      return res.status(500).json({ message: 'Error listing quoters v2', error: error.message });
+      return sendError(res, error, {
+        status: 500,
+        message: 'Error listing quoters v2',
+        errorCode: 'QUOTER_V2_LIST_FAILED',
+      });
     }
   }
 
   async getById(req, res) {
     try {
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Quoter V2 id is invalid', 'QUOTER_V2_ID_INVALID'));
+      }
+
       const item = await quoterV2Service.getById(req.params.id);
       if (!item) {
-        return res.status(404).json({ message: 'Quoter V2 not found' });
+        return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
       }
       return res.status(200).json(item);
     } catch (error) {
-      return res.status(500).json({ message: 'Error loading quoter v2', error: error.message });
+      return sendError(res, error, {
+        status: 500,
+        message: 'Error loading quoter v2',
+        errorCode: 'QUOTER_V2_FETCH_FAILED',
+      });
     }
   }
 
   async create(req, res) {
     try {
-      const contactId = await resolveContactForQuote(req.body, req.user);
+      const payload = normalizeQuoterContract(req.body);
+      validateQuoterPayload(payload);
+      await assertValidTariffReferences(payload);
+
+      const contactId = await resolveContactForQuote(payload, req.user);
       const created = await quoterV2Service.create({
-        ...req.body,
+        ...payload,
         contact_id: contactId,
       });
       return res.status(201).json(created);
     } catch (error) {
-      return res.status(400).json({ message: 'Error creating quoter v2', error: error.message });
+      return sendError(res, error, {
+        status: 400,
+        message: 'Error creating quoter v2',
+        errorCode: 'QUOTER_V2_CREATE_FAILED',
+      });
     }
   }
 
   async update(req, res) {
     try {
-      const contactId = req.body.contact_id || await resolveContactForQuote(req.body, req.user);
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Quoter V2 id is invalid', 'QUOTER_V2_ID_INVALID'));
+      }
+
+      const payload = normalizeQuoterContract(req.body);
+      validateQuoterPayload(payload, { partial: true });
+      await assertValidTariffReferences(payload);
+
+      const contactId = payload.contact_id || await resolveContactForQuote(payload, req.user);
       const updated = await quoterV2Service.update(req.params.id, {
-        ...req.body,
+        ...payload,
         contact_id: contactId,
       });
       if (!updated) {
-        return res.status(404).json({ message: 'Quoter V2 not found' });
+        return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
       }
       return res.status(200).json(updated);
     } catch (error) {
-      return res.status(400).json({ message: 'Error updating quoter v2', error: error.message });
+      return sendError(res, error, {
+        status: 400,
+        message: 'Error updating quoter v2',
+        errorCode: 'QUOTER_V2_UPDATE_FAILED',
+      });
     }
   }
 
   async remove(req, res) {
     try {
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Quoter V2 id is invalid', 'QUOTER_V2_ID_INVALID'));
+      }
+
       const deleted = await quoterV2Service.remove(req.params.id);
       if (!deleted) {
-        return res.status(404).json({ message: 'Quoter V2 not found' });
+        return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
       }
       return res.status(200).json(deleted);
     } catch (error) {
-      return res.status(500).json({ message: 'Error deleting quoter v2', error: error.message });
+      return sendError(res, error, {
+        status: 500,
+        message: 'Error deleting quoter v2',
+        errorCode: 'QUOTER_V2_DELETE_FAILED',
+      });
     }
   }
 
   async confirmSale(req, res) {
     try {
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Quoter V2 id is invalid', 'QUOTER_V2_ID_INVALID'));
+      }
+
+      validateConfirmSalePayload(req.body || {});
+
       const requestedFileCode = normalizeFileCode(req.body?.fileCode);
       const notifyEmails = normalizeStringList(req.body?.notifyEmails).map((email) => email.toLowerCase());
       const notifyUserIds = normalizeStringList(req.body?.notifyUserIds);
       const quoter = await QuoterV2.findById(req.params.id);
       if (!quoter) {
-        return res.status(404).json({ message: 'Quoter V2 not found' });
+        return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
       }
 
       const contact = await Contact.findOne({ 'cotizations.quoter_id': quoter._id });
       if (!contact) {
-        return res.status(400).json({ message: 'Contact not found for this quoter' });
+        return sendError(res, createHttpError(400, 'Contact not found for this quoter', 'QUOTER_V2_CONTACT_NOT_FOUND'));
       }
 
       const changedBy = req.user?.id || null;
@@ -194,16 +576,16 @@ class QuoterV2Controller {
 
       const fileCode = requestedFileCode || existingBookingFile?.fileCode || '';
       if (!fileCode) {
-        return res.status(400).json({ message: 'fileCode is required to confirm sale' });
+        return sendError(res, createHttpError(400, 'fileCode is required to confirm sale', 'QUOTER_V2_FILE_CODE_REQUIRED'));
       }
 
       const duplicatedFile = await BookingFile.findOne({
         fileCode,
-        ...(existingBookingFile?._id ? { _id: { $ne: existingBookingFile._id } } : {})
+        ...(existingBookingFile?._id ? { _id: { $ne: existingBookingFile._id } } : {}),
       }).select('_id fileCode');
 
       if (duplicatedFile) {
-        return res.status(409).json({ message: `File code ${fileCode} is already in use` });
+        return sendError(res, createHttpError(409, `File code ${fileCode} is already in use`, 'BOOKING_FILE_CODE_ALREADY_IN_USE'));
       }
 
       const itinerarySnapshot = buildBookingSnapshot(quoter);
@@ -217,17 +599,17 @@ class QuoterV2Controller {
         destinations: quoter.destinations || [],
         pax_summary: {
           number_paxs: quoter.number_paxs || 0,
-          children_ages: quoter.children_ages || []
+          children_ages: quoter.children_ages || [],
         },
         sales_snapshot: {
           quoter_id: quoter._id,
           status: 'SOLD',
           soldAt: new Date().toISOString(),
-          total_prices: quoter.total_prices || {}
+          total_prices: quoter.total_prices || {},
         },
         itinerary_snapshot: itinerarySnapshot,
         operational_itinerary: buildOperationalItineraryFromSnapshot(itinerarySnapshot, changedBy),
-        updatedBy: changedBy
+        updatedBy: changedBy,
       };
 
       let bookingFile;
@@ -241,7 +623,7 @@ class QuoterV2Controller {
         bookingFile = await BookingFile.create({
           quoter_id: quoter._id,
           createdBy: changedBy,
-          ...bookingPayload
+          ...bookingPayload,
         });
       }
 
@@ -260,7 +642,7 @@ class QuoterV2Controller {
         contactId: String(contact._id),
         soldQuoterId: String(quoter._id),
         fileId: String(bookingFile._id),
-        changedBy
+        changedBy,
       });
 
       const serviceOrderIds = (ordersResult.orders || []).map((order) => order._id);
@@ -274,7 +656,7 @@ class QuoterV2Controller {
       let notification = {
         sent: false,
         skipped: true,
-        reason: 'Notification not attempted'
+        reason: 'Notification not attempted',
       };
 
       try {
@@ -284,13 +666,13 @@ class QuoterV2Controller {
           quoter,
           changedByUser,
           notifyEmails,
-          notifyUserIds
+          notifyUserIds,
         });
       } catch (notificationError) {
         notification = {
           sent: false,
           skipped: true,
-          reason: notificationError.message
+          reason: notificationError.message,
         };
         console.error('[booking-file-sale-notification] Error sending email', notificationError);
       }
@@ -302,33 +684,43 @@ class QuoterV2Controller {
         notification,
         serviceOrders: {
           businessEventId: ordersResult.businessEventId,
-          createdCount: ordersResult.createdCount
-        }
+          createdCount: ordersResult.createdCount,
+        },
       });
     } catch (error) {
-      return res.status(500).json({ message: 'Error confirming sale', error: error.message });
+      return sendError(res, error, {
+        status: 500,
+        message: 'Error confirming sale',
+        errorCode: 'QUOTER_V2_CONFIRM_SALE_FAILED',
+      });
     }
   }
 
   async revertSale(req, res) {
     try {
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Quoter V2 id is invalid', 'QUOTER_V2_ID_INVALID'));
+      }
+
+      validateRevertSalePayload(req.body || {});
+
       const targetStatus = String(req.body?.targetStatus || '').toUpperCase();
       if (!['WIP', 'HOLD', 'LOST'].includes(targetStatus)) {
-        return res.status(400).json({ message: 'targetStatus must be WIP, HOLD, or LOST' });
+        return sendError(res, createHttpError(400, 'targetStatus must be WIP, HOLD, or LOST', 'QUOTER_V2_TARGET_STATUS_INVALID'));
       }
 
       const quoter = await QuoterV2.findById(req.params.id);
       if (!quoter) {
-        return res.status(404).json({ message: 'Quoter V2 not found' });
+        return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
       }
 
       if (quoter.status !== 'SOLD') {
-        return res.status(400).json({ message: 'Only sold quoters can be reverted with this action' });
+        return sendError(res, createHttpError(400, 'Only sold quoters can be reverted with this action', 'QUOTER_V2_NOT_SOLD'));
       }
 
       const contact = await Contact.findById(quoter.contact_id);
       if (!contact) {
-        return res.status(400).json({ message: 'Contact not found for this quoter' });
+        return sendError(res, createHttpError(400, 'Contact not found for this quoter', 'QUOTER_V2_CONTACT_NOT_FOUND'));
       }
 
       const changedBy = req.user?.id || null;
@@ -340,13 +732,13 @@ class QuoterV2Controller {
 
       const businessEventId = serviceOrderOrchestrator.buildBusinessEventId({
         contactId: String(contact._id),
-        soldQuoterId: String(quoter._id)
+        soldQuoterId: String(quoter._id),
       });
 
       await serviceOrderOrchestrator.cancelOrdersForBusinessEvent({
         businessEventId,
         reason,
-        changedBy
+        changedBy,
       });
 
       if (bookingFile) {
@@ -365,7 +757,7 @@ class QuoterV2Controller {
             ...bookingFile.sales_snapshot,
             status: 'CANCELLED',
             cancelledAt: now.toISOString(),
-            cancelReason: reason
+            cancelReason: reason,
           };
         }
         await bookingFile.save();
@@ -384,7 +776,7 @@ class QuoterV2Controller {
           }
           return {
             ...source,
-            status: targetStatus
+            status: targetStatus,
           };
         });
       }
@@ -399,50 +791,65 @@ class QuoterV2Controller {
         message: `Sale reverted to ${targetStatus}`,
         quoter,
         contact,
-        bookingFile
+        bookingFile,
       });
     } catch (error) {
-      return res.status(500).json({ message: 'Error reverting sale', error: error.message });
+      return sendError(res, error, {
+        status: 500,
+        message: 'Error reverting sale',
+        errorCode: 'QUOTER_V2_REVERT_SALE_FAILED',
+      });
     }
   }
+
   async reviewQuote(req, res) {
     try {
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Quoter V2 id is invalid', 'QUOTER_V2_ID_INVALID'));
+      }
+
       const result = await quoterV2ReviewService.reviewQuote(req.params.id);
       return res.status(200).json(result);
     } catch (error) {
       if (error.message === 'QUOTER_V2_NOT_FOUND') {
-        return res.status(404).json({ message: 'Quoter V2 not found' });
+        return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
       }
 
       if (error.code === 'OPENAI_NOT_CONFIGURED') {
-        return res.status(503).json({ message: 'OpenAI review is not configured', error: error.message });
+        return sendError(res, createHttpError(503, 'OpenAI review is not configured', 'QUOTER_V2_REVIEW_NOT_CONFIGURED'));
       }
 
       if (error.code === 'OPENAI_TIMEOUT') {
-        return res.status(504).json({ message: 'OpenAI review timed out', error: error.message });
+        return sendError(res, createHttpError(504, 'OpenAI review timed out', 'QUOTER_V2_REVIEW_TIMEOUT'));
       }
 
-      return res.status(500).json({ message: error.message || 'Error reviewing quoter v2', error: error.message });
+      return sendError(res, error, {
+        status: 500,
+        message: 'Error reviewing quoter v2',
+        errorCode: 'QUOTER_V2_REVIEW_FAILED',
+      });
     }
   }
 
   async calculatePrices(req, res) {
     try {
       const body = req.body || {};
+      validateCalculatePricesPayload(body);
+
       if (!body.number_paxs || Number(body.number_paxs) < 1) {
-        return res.status(400).json({ message: 'number_paxs must be at least 1' });
+        return sendError(res, createHttpError(400, 'number_paxs must be at least 1', 'QUOTER_V2_NUMBER_PAXS_INVALID'));
       }
 
       const result = await quoterV2PricingService.calculatePrices(body);
       return res.status(200).json(result);
     } catch (error) {
-      return res.status(400).json({ message: 'Error calculating quoter-v2 prices', error: error.message });
+      return sendError(res, error, {
+        status: 400,
+        message: 'Error calculating quoter-v2 prices',
+        errorCode: 'QUOTER_V2_PRICE_CALCULATION_FAILED',
+      });
     }
   }
 }
 
 module.exports = new QuoterV2Controller();
-
-
-
-

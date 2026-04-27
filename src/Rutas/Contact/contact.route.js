@@ -1,5 +1,5 @@
 const express = require('express');
-const router = express.Router();
+
 const Contact = require('../../models/contact.schema');
 const User = require('../../models/user.schema');
 const BookingFile = require('../../models/booking_file.schema');
@@ -8,8 +8,84 @@ const serviceOrderOrchestrator = require('../../Services/service-orders/service-
 const {
   canManageAllContacts,
   buildContactAccessFilter,
-  findAccessibleContactById
+  findAccessibleContactById,
 } = require('../../Services/contacts/contact-access.service');
+const { createHttpError, sendError } = require('../../utils/httpError');
+const { createValidator, isPlainObject, isValidObjectId } = require('../../utils/requestValidation');
+
+const router = express.Router();
+const CONTACT_STATUSES = ['WIP', 'HOLD', 'SOLD', 'LOST'];
+const QUOTER_MODELS = ['v1', 'v2'];
+
+function validateContactCreatePayload(body) {
+  const validator = createValidator({
+    message: 'Invalid contact payload',
+    errorCode: 'CONTACT_CREATE_VALIDATION_FAILED',
+  });
+
+  validator.requirePlainObject('body', body);
+  if (!isPlainObject(body)) {
+    validator.assert();
+    return;
+  }
+
+  validator.requireNonEmptyString('name', body.name);
+  validator.optionalString('phone', body.phone);
+  validator.optionalEmail('email', body.email);
+  validator.assert();
+}
+
+function validateCotizations(cotizations, validator, field = 'cotizations') {
+  validator.optionalArray(field, cotizations);
+  if (!Array.isArray(cotizations)) {
+    return;
+  }
+
+  cotizations.forEach((item, index) => {
+    const itemField = `${field}[${index}]`;
+    if (!isPlainObject(item)) {
+      validator.addIssue(itemField, `${itemField} must be an object`, item);
+      return;
+    }
+
+    validator.optionalString(`${itemField}.name_version`, item.name_version);
+    validator.optionalEnum(`${itemField}.quoter_model`, item.quoter_model, QUOTER_MODELS);
+    validator.optionalEnum(`${itemField}.status`, item.status, CONTACT_STATUSES);
+    validator.optionalObjectId(`${itemField}.quoter_id`, item.quoter_id, { allowNull: true });
+    validator.optionalDate(`${itemField}.createQuoter`, item.createQuoter);
+  });
+}
+
+function validateContactUpdatePayload(body) {
+  const validator = createValidator({
+    message: 'Invalid contact update payload',
+    errorCode: 'CONTACT_UPDATE_VALIDATION_FAILED',
+  });
+
+  validator.requirePlainObject('body', body);
+  if (!isPlainObject(body)) {
+    validator.assert();
+    return;
+  }
+
+  if (!Object.keys(body).length) {
+    validator.addIssue('body', 'body must not be empty');
+  }
+
+  validator.optionalString('name', body.name, { allowEmpty: false });
+  validator.optionalString('phone', body.phone);
+  validator.optionalEmail('email', body.email);
+  validator.optionalString('td_designed', body.td_designed);
+  validator.optionalEnum('status', body.status, CONTACT_STATUSES);
+  validator.optionalObjectId('assignedTo', body.assignedTo, { allowNull: true });
+
+  if (body.soldQuoterId !== undefined && body.soldQuoterId !== null && body.soldQuoterId !== '') {
+    validator.optionalObjectId('soldQuoterId', body.soldQuoterId);
+  }
+
+  validateCotizations(body.cotizations, validator);
+  validator.assert();
+}
 
 function enforceSingleSold(cotizations = [], soldQuoterId) {
   const normalizedCotizations = Array.isArray(cotizations)
@@ -69,87 +145,46 @@ function enforceSingleSold(cotizations = [], soldQuoterId) {
 
   return {
     cotizations: normalizedCotizations,
-    soldQuoterId: normalizedSoldId || null
+    soldQuoterId: normalizedSoldId || null,
   };
 }
 
 router.post('/', authenticate, async (req, res) => {
   try {
+    validateContactCreatePayload(req.body);
+
     const name = String(req.body?.name || '').trim();
     const { phone, email } = req.body || {};
     const ownerId = req.user.id;
 
     if (!name) {
-      return res.status(400).json({ message: 'El nombre del contacto es obligatorio' });
+      return sendError(res, createHttpError(400, 'El nombre del contacto es obligatorio', 'CONTACT_NAME_REQUIRED'));
     }
 
     const duplicate = await Contact.findOne({ name, owner: ownerId }).select('_id');
     if (duplicate) {
-      return res.status(400).json({ message: 'Ya existe un contacto con ese nombre para este usuario' });
+      return sendError(res, createHttpError(400, 'Ya existe un contacto con ese nombre para este usuario', 'CONTACT_DUPLICATE_NAME'));
     }
 
     const owner = await User.findById(ownerId).select('_id');
     if (!owner) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
+      return sendError(res, createHttpError(404, 'Usuario no encontrado', 'CONTACT_OWNER_NOT_FOUND'));
     }
 
     const contact = await Contact.create({
       name,
       phone,
       email,
-      owner: ownerId
+      owner: ownerId,
     });
 
     return res.status(201).json(contact);
-  } catch (err) {
-    console.error(err);
-    if (err?.code === 11000) {
-      return res.status(400).json({
-        message: 'Ya existe un contacto con ese nombre para este usuario',
-        err: err.message
-      });
-    }
-    return res.status(400).json({ message: 'Error al crear contacto', err: err.message });
-  }
-});
-
-router.get('/all-cotizations', authenticate, async (req, res) => {
-  try {
-    const scopedMatch = buildContactAccessFilter(req.user);
-    const cotizations = await Contact.aggregate([
-      { $match: scopedMatch },
-      {
-        $unwind: {
-          path: '$cotizations',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $project: {
-          contactId: '$_id',
-          contactName: '$name',
-          cotization: '$cotizations',
-          _id: 0
-        }
-      }
-    ]);
-
-    return res.status(200).json(cotizations);
   } catch (error) {
-    console.error('Error al extraer cotizaciones:', error);
-    return res.status(500).send({ error: 'Error al obtener las cotizaciones' });
-  }
-});
-
-router.get('/all-contacts', authenticate, async (req, res) => {
-  try {
-    const contacts = await Contact.find(buildContactAccessFilter(req.user))
-      .select('name _id owner')
-      .sort({ createdAt: -1 });
-
-    return res.json(contacts);
-  } catch (err) {
-    return res.status(500).json({ message: 'Error al obtener contactos', error: err.message });
+    return sendError(res, error, {
+      status: 400,
+      message: 'Error al crear contacto',
+      errorCode: 'CONTACT_CREATE_FAILED',
+    });
   }
 });
 
@@ -182,30 +217,48 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     return res.json({ contacts, totalContacts, page, pageSize });
-  } catch (err) {
-    console.error('Error al obtener contactos:', err);
-    return res.status(500).json({ message: 'Error interno al obtener contactos', error: err.message });
+  } catch (error) {
+    console.error('Error al obtener contactos:', error);
+    return sendError(res, error, {
+      status: 500,
+      message: 'Error interno al obtener contactos',
+      errorCode: 'CONTACT_LIST_FAILED',
+    });
   }
 });
 
 router.get('/:id', async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return sendError(res, createHttpError(400, 'Contact id is invalid', 'CONTACT_ID_INVALID'));
+    }
+
     const contact = await findAccessibleContactById(req.params.id, req.user);
     if (!contact) {
-      return res.status(404).json({ message: 'Contacto no encontrado o sin acceso' });
+      return sendError(res, createHttpError(404, 'Contacto no encontrado o sin acceso', 'CONTACT_NOT_FOUND'));
     }
 
     return res.status(200).send(contact);
   } catch (error) {
-    return res.status(500).send(error);
+    return sendError(res, error, {
+      status: 500,
+      message: 'Error al obtener contacto',
+      errorCode: 'CONTACT_FETCH_FAILED',
+    });
   }
 });
 
 router.patch('/:id', async (req, res) => {
   try {
-    const contact = await findAccessibleContactById(req.params.id, req.user).lean();
+    if (!isValidObjectId(req.params.id)) {
+      return sendError(res, createHttpError(400, 'Contact id is invalid', 'CONTACT_ID_INVALID'));
+    }
+
+    validateContactUpdatePayload(req.body);
+
+    const contact = await findAccessibleContactById(req.params.id, req.user);
     if (!contact) {
-      return res.status(404).json({ message: 'Contacto no encontrado o sin acceso' });
+      return sendError(res, createHttpError(404, 'Contacto no encontrado o sin acceso', 'CONTACT_NOT_FOUND'));
     }
 
     const previousSoldQuoterId = contact.soldQuoterId ? String(contact.soldQuoterId) : null;
@@ -241,48 +294,60 @@ router.patch('/:id', async (req, res) => {
     if (currentSoldQuoterId && currentSoldQuoterId !== previousSoldQuoterId) {
       const bookingFile = await BookingFile.findOne({ quoter_id: currentSoldQuoterId }).select('_id');
       if (!bookingFile) {
-        return res.status(400).json({ message: 'Booking file not found for current sold quoter' });
+        return sendError(res, createHttpError(400, 'Booking file not found for current sold quoter', 'CONTACT_BOOKING_FILE_NOT_FOUND'));
       }
 
       await serviceOrderOrchestrator.createOrdersForContactSold({
         contactId: String(contact._id),
         soldQuoterId: currentSoldQuoterId,
         fileId: String(bookingFile._id),
-        changedBy
+        changedBy,
       });
     }
 
     if (!currentSoldQuoterId && previousSoldQuoterId) {
       const previousEventId = serviceOrderOrchestrator.buildBusinessEventId({
         contactId: String(contact._id),
-        soldQuoterId: previousSoldQuoterId
+        soldQuoterId: previousSoldQuoterId,
       });
 
       await serviceOrderOrchestrator.cancelOrdersForBusinessEvent({
         businessEventId: previousEventId,
         reason: 'Contact sale reverted',
-        changedBy
+        changedBy,
       });
     }
 
     return res.status(200).send(updatedContact);
   } catch (error) {
-    return res.status(400).send(error);
+    return sendError(res, error, {
+      status: 400,
+      message: 'Error al actualizar contacto',
+      errorCode: 'CONTACT_UPDATE_FAILED',
+    });
   }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return sendError(res, createHttpError(400, 'Contact id is invalid', 'CONTACT_ID_INVALID'));
+    }
+
     const contact = await findAccessibleContactById(req.params.id, req.user);
     if (!contact) {
-      return res.status(404).json({ message: 'Contacto no encontrado o sin acceso' });
+      return sendError(res, createHttpError(404, 'Contacto no encontrado o sin acceso', 'CONTACT_NOT_FOUND'));
     }
 
     await Contact.findByIdAndDelete(contact._id);
     return res.status(200).json(contact);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error al eliminar contacto', err });
+  } catch (error) {
+    console.error(error);
+    return sendError(res, error, {
+      status: 500,
+      message: 'Error al eliminar contacto',
+      errorCode: 'CONTACT_DELETE_FAILED',
+    });
   }
 });
 

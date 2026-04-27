@@ -1,43 +1,39 @@
-const exs = require("express");
+const exs = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
+
 const routes = require('./src/Rutas');
 const connectDB = require('./db/db.js');
-const morgan = require('morgan')
 const { mostrarError, boomManejaError, manejarError } = require('./src/middlewares/handleErrors.js');
-
-const cors = require('cors')
-//const { use } = require("./Rutas/Lotes/Lotes.route");
-const { authenticate } = require('./src/middlewares/auth.js')
 
 const apk = exs();
 const puerto = 3000;
 
 const corsOptions = {
   origin: [
-    'http://localhost:4200',      // Sistema 1 frontend (dev)
-    'http://localhost:65425',      // Sistema 2 frontend (dev)
-    'http://44.201.126.204:4201',   // Sistema 2 frontend (prod)
+    'http://localhost:4200',
+    'http://localhost:65425',
+    'http://44.201.126.204:4201',
     'https://kuoda-cotizador-30b67.web.app',
-    'https://kuoda-cotizador-30b67.firebaseapp.com'
+    'https://kuoda-cotizador-30b67.firebaseapp.com',
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
 };
 
 apk.use(exs.json());
 apk.use(cors(corsOptions));
 apk.use(morgan('dev'));
+
 connectDB();
 routes(apk);
 
-// apk.use(mostrarError); // Registro del error
-// apk.use(boomManejaError); // Manejo de errores Boom
-apk.use(manejarError); // Manejo de errores genéricos
-apk.use(authenticate);
+apk.use(mostrarError);
+apk.use(boomManejaError);
+apk.use(manejarError);
 
 apk.listen(puerto, () => {
-  console.log("puerto " + puerto + " activo")
+  console.log(`puerto ${puerto} activo`);
 });
-
-

@@ -38,6 +38,10 @@ const HotelSchema = new Schema({
   notes: { type: String, trim: true, default: '' },
   tariff_item_id: { type: Schema.Types.ObjectId, ref: 'TariffItemV2', default: null },
   placement: { type: String, enum: ['services', 'options'], default: 'services' },
+  room_name: { type: String, trim: true, default: '' },
+  occupancy: { type: String, trim: true, default: '' },
+  room_rate_type: { type: String, enum: ['confidential', 'rack'], default: 'confidential' },
+  price_source: { type: String, enum: ['tariff', 'manual'], default: 'tariff' },
 }, { _id: false });
 
 const FlightSchema = new Schema({

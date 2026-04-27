@@ -108,6 +108,13 @@ const serviceOrderSchema = new Schema({
   financials: { type: financialsSchema, default: () => ({}) },
   attachments: { type: [attachmentSchema], default: [] },
   auditLogs: { type: [auditLogSchema], default: [] },
+  lastStatusChangeAt: { type: Date, default: Date.now },
+  lastStageChangeAt: { type: Date, default: null },
+  completedAt: { type: Date, default: null },
+  completedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  cancelledAt: { type: Date, default: null },
+  cancelledBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  cancellationReason: { type: String, default: '', trim: true },
 
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null }

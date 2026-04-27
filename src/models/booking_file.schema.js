@@ -22,6 +22,19 @@ const passengerInfoStatusSchema = new Schema({
   notes: { type: String, default: '' }
 }, { _id: false });
 
+const bookingFileSummaryContextSchema = new Schema({
+  orders_total: { type: Number, default: 0, min: 0 },
+  open_orders: { type: Number, default: 0, min: 0 },
+  completed_orders: { type: Number, default: 0, min: 0 },
+  blocked_orders: { type: Number, default: 0, min: 0 },
+  overdue_orders: { type: Number, default: 0, min: 0 },
+  due_today_orders: { type: Number, default: 0, min: 0 },
+  passenger_info_ready: { type: Boolean, default: false },
+  all_required_areas_completed: { type: Boolean, default: false },
+  overall_reason: { type: String, default: '', trim: true },
+  risk_reason: { type: String, default: '', trim: true }
+}, { _id: false });
+
 const OPERATIONAL_ITINERARY_ITEM_STATUSES = ['PENDING', 'IN_PROGRESS', 'READY'];
 const OPERATIONAL_ITINERARY_ITEM_TYPES = ['SERVICE', 'HOTEL', 'FLIGHT', 'OPERATOR', 'CRUISE', 'TRANSPORT', 'EXPERIENCE'];
 const OPERATIONAL_ITINERARY_SOURCE_SECTIONS = ['services', 'hotels', 'flights', 'operators', 'cruises'];
@@ -163,6 +176,10 @@ const bookingFileSchema = new Schema({
   },
   passenger_info_status: {
     type: passengerInfoStatusSchema,
+    default: () => ({})
+  },
+  summary_context: {
+    type: bookingFileSummaryContextSchema,
     default: () => ({})
   },
   owner_user_id: {

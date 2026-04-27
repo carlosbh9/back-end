@@ -3,6 +3,22 @@ const ServiceOrderTemplate = require('../../models/service_order_template.schema
 const QuoterV2Schema = require('../../modules/quoter-v2/infrastructure/mongoose/quoter-v2.schema');
 
 class ServiceOrderOrchestrator {
+  normalizeText(value = '') {
+    return String(value || '').trim();
+  }
+
+  buildAuditLog({ action, by = null, message = '', payload = {}, source = 'BUSINESS_EVENT' }) {
+    return {
+      action,
+      by,
+      message: this.normalizeText(message),
+      payload: {
+        source,
+        ...payload,
+      },
+    };
+  }
+
   buildBusinessEventId({ contactId, soldQuoterId }) {
     return `CONTACT_SOLD:${contactId}:${soldQuoterId}`;
   }
@@ -96,8 +112,8 @@ class ServiceOrderOrchestrator {
     });
 
     (quoterDoc?.flights || []).forEach((flight, index) => {
-      const priceConf = this.toNumber(flight?.price_conf);
-      const estimatedTotal = this.toNumber(flight?.price) || priceConf;
+      const priceBase = this.toNumber(flight?.price_base ?? flight?.price_conf);
+      const estimatedTotal = this.toNumber(flight?.price) || priceBase;
       items.push({
         type: 'TRANSPORT',
         lineKey: `flight-${index}-${this.slug(flight?.route)}`,
@@ -107,7 +123,7 @@ class ServiceOrderOrchestrator {
           lineIndex: index,
           date: flight?.date || '',
           route: flight?.route || '',
-          priceBase: priceConf,
+          priceBase,
           price: estimatedTotal,
           estimatedTotal,
           notes: flight?.notes || ''
@@ -135,8 +151,8 @@ class ServiceOrderOrchestrator {
     });
 
     (quoterDoc?.cruises || []).forEach((cruise, index) => {
-      const priceConf = this.toNumber(cruise?.price_conf);
-      const estimatedTotal = this.toNumber(cruise?.price) || priceConf;
+      const priceBase = this.toNumber(cruise?.price_base ?? cruise?.price_conf);
+      const estimatedTotal = this.toNumber(cruise?.price) || priceBase;
       items.push({
         type: 'TICKETS',
         lineKey: `cruise-${index}-${this.slug(cruise?.name)}`,
@@ -146,7 +162,7 @@ class ServiceOrderOrchestrator {
           lineIndex: index,
           name: cruise?.name || '',
           operator: cruise?.operator || '',
-          priceBase: priceConf,
+          priceBase,
           price: estimatedTotal,
           estimatedTotal,
           notes: cruise?.notes || ''
@@ -302,12 +318,13 @@ class ServiceOrderOrchestrator {
         sourceSnapshot: item.sourceSnapshot,
         createdBy: changedBy || null,
         updatedBy: changedBy || null,
-        auditLogs: [{
+        lastStatusChangeAt: new Date(),
+        auditLogs: [this.buildAuditLog({
           action: 'CREATED',
           by: changedBy || null,
           message: 'Order created from CONTACT_SOLD event',
-          payload: { businessEventId, idempotencyKey, type, lineKey }
-        }]
+          payload: { kind: 'CREATION', businessEventId, idempotencyKey, type, lineKey }
+        })]
       };
 
       // Idempotent creation by unique idempotencyKey.
@@ -325,15 +342,30 @@ class ServiceOrderOrchestrator {
 
   async cancelOrdersForBusinessEvent({ businessEventId, reason, changedBy }) {
     const orders = await ServiceOrder.find({ businessEventId, status: { $ne: 'CANCELLED' } });
+    const now = new Date();
+    const cancellationReason = this.normalizeText(reason) || 'Sale reverted';
     for (const order of orders) {
+      const previousStatus = order.status;
       order.status = 'CANCELLED';
+      order.lastStatusChangeAt = now;
+      order.cancelledAt = now;
+      order.cancelledBy = changedBy || null;
+      order.cancellationReason = cancellationReason;
+      order.completedAt = null;
+      order.completedBy = null;
       order.updatedBy = changedBy || null;
-      order.auditLogs.push({
+      order.auditLogs.push(this.buildAuditLog({
         action: 'CANCELLED',
         by: changedBy || null,
-        message: reason || 'Sale reverted',
-        payload: { reason: reason || 'Sale reverted' }
-      });
+        message: cancellationReason,
+        payload: {
+          kind: 'STATUS_TRANSITION',
+          fromStatus: previousStatus,
+          toStatus: 'CANCELLED',
+          reason: cancellationReason,
+          businessEventId,
+        }
+      }));
       await order.save();
     }
     return { cancelledCount: orders.length };

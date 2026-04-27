@@ -1,9 +1,9 @@
 const jwt = require('jsonwebtoken');
-//import jwt from 'jsonwebtoken';
-//const JWT_SECRET = 'secretKey'; // Usa una variable de entorno
-require('dotenv').config()
+require('dotenv').config();
+
 const { normalizePermissions } = require('../security/permissions');
 const { isAdminRole } = require('../security/access-policies');
+const { createHttpError, sendError } = require('../utils/httpError');
 
 function extractBearerToken(req) {
   const header = req.headers['authorization'] || req.headers.authorization;
@@ -44,7 +44,7 @@ function buildUserFromSessionPayload(payload) {
 function authenticateBridge(req, res, next) {
   const token = extractBearerToken(req);
   if (!token) {
-    return res.status(401).json({ error: 'Acceso denegado, token requerido' });
+    return sendError(res, createHttpError(401, 'Acceso denegado, token requerido', 'AUTH_TOKEN_REQUIRED'));
   }
 
   try {
@@ -60,21 +60,21 @@ function authenticateBridge(req, res, next) {
   try {
     const decoded = decodeItinerarySessionJwt(token);
     if (decoded.tokenType !== 'itinerary_session') {
-      return res.status(401).json({ error: 'Token de acceso delegado inválido' });
+      return sendError(res, createHttpError(401, 'Token de acceso delegado invalido', 'AUTH_DELEGATED_TOKEN_INVALID'));
     }
 
     req.user = buildUserFromSessionPayload(decoded);
     req.authSource = 'itinerary-session';
     return next();
   } catch (_error) {
-    return res.status(401).json({ error: 'Token inválido o expirado' });
+    return sendError(res, createHttpError(401, 'Token invalido o expirado', 'AUTH_INVALID_TOKEN'));
   }
 }
 
 function authenticateQuoterBridge(req, res, next) {
   authenticateBridge(req, res, () => {
     if (req.authSource === 'itinerary-session' && req.method !== 'GET') {
-      return res.status(403).json({ error: 'El token delegado solo permite lectura en quoter-v2' });
+      return sendError(res, createHttpError(403, 'El token delegado solo permite lectura en quoter-v2', 'AUTH_DELEGATED_READ_ONLY'));
     }
 
     return next();
@@ -85,52 +85,57 @@ function authenticateItineraryBridge(req, res, next) {
   authenticateBridge(req, res, next);
 }
 
-
 const authenticate = (req, res, next) => {
   const token = extractBearerToken(req);
-  if (!token) return res.status(403).json({ error: 'Token no proporcionado' });
+  if (!token) {
+    return sendError(res, createHttpError(403, 'Token no proporcionado', 'AUTH_TOKEN_REQUIRED'));
+  }
 
   try {
     const decoded = decodePrimaryJwt(token);
     decoded.permissions = normalizePermissions(decoded.permissions);
     req.user = decoded;
-    next();
-  } catch (error) {
-    res.status(401).json({ error: 'Token inválido' });
+    return next();
+  } catch (_error) {
+    return sendError(res, createHttpError(401, 'Token invalido', 'AUTH_INVALID_TOKEN'));
   }
 };
 
 const authorize = (roles = []) => {
-    return (req, res, next) => {
-      try {
-          const token = extractBearerToken(req);
-          if (!token) return res.status(401).json({ error: 'Acceso denegado, token requerido' });
-
-          const decoded = decodePrimaryJwt(token);
-          decoded.permissions = normalizePermissions(decoded.permissions);
-          req.user = decoded;
-
-          if (!roles.includes(req.user.role)) {
-              return res.status(403).json({ error: 'No tienes permiso para realizar esta acción' });
-          }
-
-          next();
-      } catch (error) {
-          res.status(401).json({ error: 'Token inválido o expirado' });
+  return (req, res, next) => {
+    try {
+      const token = extractBearerToken(req);
+      if (!token) {
+        return sendError(res, createHttpError(401, 'Acceso denegado, token requerido', 'AUTH_TOKEN_REQUIRED'));
       }
+
+      const decoded = decodePrimaryJwt(token);
+      decoded.permissions = normalizePermissions(decoded.permissions);
+      req.user = decoded;
+
+      if (!roles.includes(req.user.role)) {
+        return sendError(res, createHttpError(403, 'No tienes permiso para realizar esta accion', 'AUTH_FORBIDDEN'));
+      }
+
+      return next();
+    } catch (_error) {
+      return sendError(res, createHttpError(401, 'Token invalido o expirado', 'AUTH_INVALID_TOKEN'));
+    }
   };
-  };
+};
 
 const authorizePermissions = (permissions = [], options = {}) => {
   const {
     requireAll = true,
-    allowAdmin = true
+    allowAdmin = true,
   } = options;
 
   return (req, res, next) => {
     try {
       const token = extractBearerToken(req);
-      if (!token) return res.status(401).json({ error: 'Acceso denegado, token requerido' });
+      if (!token) {
+        return sendError(res, createHttpError(401, 'Acceso denegado, token requerido', 'AUTH_TOKEN_REQUIRED'));
+      }
 
       const decoded = decodePrimaryJwt(token);
       decoded.permissions = normalizePermissions(decoded.permissions);
@@ -151,17 +156,15 @@ const authorizePermissions = (permissions = [], options = {}) => {
         : requiredPermissions.some((permission) => userPermissions.includes(permission));
 
       if (!isAuthorized) {
-        return res.status(403).json({ error: 'No tienes permisos para realizar esta accion' });
+        return sendError(res, createHttpError(403, 'No tienes permisos para realizar esta accion', 'AUTH_FORBIDDEN'));
       }
 
       return next();
-    } catch (error) {
-      return res.status(401).json({ error: 'Token invÃ¡lido o expirado' });
+    } catch (_error) {
+      return sendError(res, createHttpError(401, 'Token invalido o expirado', 'AUTH_INVALID_TOKEN'));
     }
   };
 };
-  
- 
 
 module.exports = {
   authenticate,
@@ -170,4 +173,3 @@ module.exports = {
   authenticateQuoterBridge,
   authenticateItineraryBridge,
 };
-//export { authenticate, authorize };

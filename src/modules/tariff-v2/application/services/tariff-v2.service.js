@@ -40,6 +40,22 @@ class TariffV2Service {
     return item;
   }
 
+  async findExistingItemsByIds(ids = []) {
+    const normalizedIds = [...new Set(
+      (ids || [])
+        .map((id) => String(id || '').trim())
+        .filter((id) => id && isValidObjectId(id))
+    )];
+
+    if (!normalizedIds.length) {
+      return [];
+    }
+
+    return TariffItemV2Model.find({ _id: { $in: normalizedIds } })
+      .select('_id name type category city provider')
+      .lean();
+  }
+
   async create(payload) {
     const item = await TariffItemV2Model.create({
       active: payload.active ?? true,

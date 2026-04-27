@@ -135,7 +135,7 @@ function mapQuoterToItinerary(quoter) {
 
     const item = buildLockedItem(`flight-${dayNumber}`, 'flight', {
       title: flight?.route || 'Flight',
-      description: buildPriceDescription(flight?.price_conf, flight?.price),
+      description: buildPriceDescription(flight?.price_base ?? flight?.price_conf, flight?.price),
       location: flight?.route || day.location,
       notes: flight?.notes || '',
       order: day.items.length,
@@ -165,7 +165,7 @@ function mapQuoterToItinerary(quoter) {
 
     const item = buildLockedItem(`cruise-${dayNumber}`, 'activity', {
       title: cruise?.name || 'Cruise',
-      description: buildPriceDescription(cruise?.price_conf, cruise?.price),
+      description: buildPriceDescription(cruise?.price_base ?? cruise?.price_conf, cruise?.price),
       location: cruise?.operator || day.location,
       notes: cruise?.notes || '',
       order: day.items.length,

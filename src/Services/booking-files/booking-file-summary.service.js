@@ -5,6 +5,10 @@ const OPEN_ORDER_STATUSES = ['PENDING', 'IN_PROGRESS', 'WAITING_INFO'];
 const DONE_ORDER_STATUSES = ['DONE'];
 
 class BookingFileSummaryService {
+  normalizeStatusList(values = []) {
+    return Array.isArray(values) ? values.filter(Boolean) : [];
+  }
+
   normalizeDate(value) {
     if (!value) return null;
     const parsed = value instanceof Date ? value : new Date(value);
@@ -68,6 +72,27 @@ class BookingFileSummaryService {
     return 'PENDING';
   }
 
+  buildOperationalCounters(orders = [], now = new Date()) {
+    const openOrders = orders.filter((order) => OPEN_ORDER_STATUSES.includes(order.status));
+    const completedOrders = orders.filter((order) => DONE_ORDER_STATUSES.includes(order.status));
+    const blockedOrders = orders.filter((order) => order.status === 'WAITING_INFO');
+    const overdueOrders = openOrders.filter((order) => order.dueDate && this.normalizeDate(order.dueDate) && this.normalizeDate(order.dueDate) < now);
+    const todayKey = now.toISOString().slice(0, 10);
+    const dueTodayOrders = openOrders.filter((order) => {
+      const dueDate = this.normalizeDate(order.dueDate);
+      return dueDate ? dueDate.toISOString().slice(0, 10) === todayKey : false;
+    });
+
+    return {
+      orders_total: orders.length,
+      open_orders: openOrders.length,
+      completed_orders: completedOrders.length,
+      blocked_orders: blockedOrders.length,
+      overdue_orders: overdueOrders.length,
+      due_today_orders: dueTodayOrders.length,
+    };
+  }
+
   buildPassengerInfoStatus(existingStatus = {}, file = {}) {
     const current = {
       status: existingStatus?.status || 'NOT_SENT',
@@ -112,47 +137,131 @@ class BookingFileSummaryService {
     return current;
   }
 
-  deriveOverallStatus({ file, reservationsStatus, operationsStatus, paymentsStatus, deliverablesStatus, passengerInfoStatus, riskLevel }) {
-    if (file?.is_cancelled) return 'CANCELLED';
-    if (riskLevel === 'CRITICAL' || [reservationsStatus, operationsStatus, paymentsStatus, deliverablesStatus].includes('BLOCKED')) {
-      return 'AT_RISK';
+  deriveOverallStatus({ file, reservationsStatus, operationsStatus, paymentsStatus, deliverablesStatus, passengerInfoStatus, riskLevel, counters }) {
+    if (file?.is_cancelled) {
+      return {
+        overall_status: 'CANCELLED',
+        all_required_areas_completed: false,
+        passenger_info_ready: false,
+        overall_reason: 'The file is cancelled, so operational progress is no longer active.',
+      };
     }
 
-    const summaryStatuses = [reservationsStatus, operationsStatus, paymentsStatus, deliverablesStatus].filter((value) => value !== 'NOT_REQUIRED');
-    const allCompleted = summaryStatuses.length > 0 && summaryStatuses.every((value) => value === 'COMPLETED');
-    if (allCompleted && ['COMPLETED', 'VALIDATED'].includes(passengerInfoStatus.status)) {
-      return 'COMPLETED';
+    const summaryStatuses = this.normalizeStatusList([reservationsStatus, operationsStatus, paymentsStatus, deliverablesStatus]);
+    const requiredStatuses = summaryStatuses.filter((value) => !['NOT_REQUIRED', 'NOT_STARTED', 'CANCELLED'].includes(value));
+    const allRequiredAreasCompleted = requiredStatuses.length > 0 && requiredStatuses.every((value) => value === 'COMPLETED');
+    const passengerInfoReady = ['COMPLETED', 'VALIDATED'].includes(passengerInfoStatus.status);
+    const hasBlockedArea = summaryStatuses.includes('BLOCKED');
+    const hasActiveWork = summaryStatuses.some((value) => ['IN_PROGRESS', 'PARTIAL'].includes(value));
+    const hasPendingArea = summaryStatuses.some((value) => value === 'PENDING');
+
+    if (riskLevel === 'CRITICAL' || hasBlockedArea) {
+      return {
+        overall_status: 'AT_RISK',
+        all_required_areas_completed: allRequiredAreasCompleted,
+        passenger_info_ready: passengerInfoReady,
+        overall_reason: hasBlockedArea
+          ? 'At least one operational area is blocked and requires intervention.'
+          : 'The file has critical operational risk and must be prioritized.',
+      };
     }
 
-    if ([reservationsStatus, operationsStatus, paymentsStatus, deliverablesStatus].some((value) => ['IN_PROGRESS', 'PARTIAL'].includes(value))) {
-      return 'ACTIVE';
+    if (allRequiredAreasCompleted && counters.open_orders === 0 && passengerInfoReady) {
+      return {
+        overall_status: 'COMPLETED',
+        all_required_areas_completed: true,
+        passenger_info_ready: true,
+        overall_reason: 'All required operational areas are completed and passenger information is ready.',
+      };
     }
 
-    if ([reservationsStatus, operationsStatus, paymentsStatus, deliverablesStatus].some((value) => value === 'PENDING') || passengerInfoStatus.status !== 'VALIDATED') {
-      return 'PENDING';
+    if (allRequiredAreasCompleted && counters.open_orders === 0) {
+      return {
+        overall_status: 'READY',
+        all_required_areas_completed: true,
+        passenger_info_ready: passengerInfoReady,
+        overall_reason: 'All required operational areas are completed. Passenger information is the remaining follow-up.',
+      };
     }
 
-    return 'READY';
+    if (hasActiveWork) {
+      return {
+        overall_status: 'ACTIVE',
+        all_required_areas_completed: allRequiredAreasCompleted,
+        passenger_info_ready: passengerInfoReady,
+        overall_reason: 'The file has active work in progress across one or more operational areas.',
+      };
+    }
+
+    if (hasPendingArea || counters.open_orders > 0 || !passengerInfoReady) {
+      return {
+        overall_status: 'PENDING',
+        all_required_areas_completed: allRequiredAreasCompleted,
+        passenger_info_ready: passengerInfoReady,
+        overall_reason: counters.open_orders > 0
+          ? 'There are still open service orders pending execution.'
+          : 'The file is still waiting for the first operational milestones.',
+      };
+    }
+
+    return {
+      overall_status: 'READY',
+      all_required_areas_completed: allRequiredAreasCompleted,
+      passenger_info_ready: passengerInfoReady,
+      overall_reason: 'The file is operationally ready for the next handoff.',
+    };
   }
 
-  deriveRiskLevel({ orders, file, lastActivityAt }) {
-    if (file?.is_cancelled) return 'LOW';
+  deriveRiskLevel({ file, lastActivityAt, counters }) {
+    if (file?.is_cancelled) {
+      return {
+        risk_level: 'LOW',
+        risk_reason: 'Cancelled files do not carry active delivery risk.',
+      };
+    }
 
     const now = new Date();
-    const overdueOpenOrders = orders.filter((order) => OPEN_ORDER_STATUSES.includes(order.status) && order.dueDate && this.normalizeDate(order.dueDate) && this.normalizeDate(order.dueDate) < now).length;
     const daysToTravel = this.daysBetween(now, file.travel_date_start);
     const recentActivityDays = lastActivityAt ? this.daysBetween(lastActivityAt, now) : null;
 
-    if (overdueOpenOrders >= 2 || (daysToTravel !== null && daysToTravel <= 2 && overdueOpenOrders > 0)) {
-      return 'CRITICAL';
+    if (
+      counters.overdue_orders >= 2
+      || (counters.blocked_orders > 0 && daysToTravel !== null && daysToTravel <= 3)
+      || (daysToTravel !== null && daysToTravel <= 2 && counters.open_orders > 0)
+    ) {
+      return {
+        risk_level: 'CRITICAL',
+        risk_reason: 'The file has urgent operational pressure due to blocked, overdue, or imminent travel work.',
+      };
     }
-    if (overdueOpenOrders === 1 || (daysToTravel !== null && daysToTravel <= 7)) {
-      return 'HIGH';
+
+    if (
+      counters.blocked_orders > 0
+      || counters.overdue_orders === 1
+      || (daysToTravel !== null && daysToTravel <= 7 && counters.open_orders > 0)
+    ) {
+      return {
+        risk_level: 'HIGH',
+        risk_reason: 'The file needs close follow-up because there is blocked or time-sensitive open work.',
+      };
     }
-    if (recentActivityDays !== null && recentActivityDays > 7) {
-      return 'MEDIUM';
+
+    if (
+      counters.due_today_orders > 0
+      || (counters.open_orders > 0 && recentActivityDays !== null && recentActivityDays > 7)
+    ) {
+      return {
+        risk_level: 'MEDIUM',
+        risk_reason: 'The file is stable, but it has open work that should be reviewed soon.',
+      };
     }
-    return 'LOW';
+
+    return {
+      risk_level: 'LOW',
+      risk_reason: counters.open_orders > 0
+        ? 'The file has open work, but no immediate blockers or deadlines.'
+        : 'The file has no immediate operational warning signs.',
+    };
   }
 
   deriveNextAction(orders = []) {
@@ -212,16 +321,18 @@ class BookingFileSummaryService {
     const deliverablesStatus = this.mapDeliverablesStatus(orders);
     const passengerInfoStatus = this.buildPassengerInfoStatus(file.passenger_info_status, file);
     const lastActivityAt = this.extractLastActivityAt(file, orders);
-    const riskLevel = this.deriveRiskLevel({ orders, file, lastActivityAt });
+    const counters = this.buildOperationalCounters(orders);
+    const riskSummary = this.deriveRiskLevel({ file, lastActivityAt, counters });
     const nextAction = this.deriveNextAction(orders);
-    const overallStatus = this.deriveOverallStatus({
+    const overallSummary = this.deriveOverallStatus({
       file,
       reservationsStatus,
       operationsStatus,
       paymentsStatus,
       deliverablesStatus,
       passengerInfoStatus,
-      riskLevel
+      riskLevel: riskSummary.risk_level,
+      counters,
     });
 
     file.service_order_ids = orders.map((order) => order._id);
@@ -230,11 +341,18 @@ class BookingFileSummaryService {
     file.payments_status = paymentsStatus;
     file.deliverables_status = deliverablesStatus;
     file.passenger_info_status = passengerInfoStatus;
-    file.overall_status = overallStatus;
-    file.risk_level = riskLevel;
+    file.overall_status = overallSummary.overall_status;
+    file.risk_level = riskSummary.risk_level;
     file.last_activity_at = lastActivityAt;
     file.next_action = nextAction.next_action;
     file.next_action_due_at = nextAction.next_action_due_at;
+    file.summary_context = {
+      ...counters,
+      passenger_info_ready: overallSummary.passenger_info_ready,
+      all_required_areas_completed: overallSummary.all_required_areas_completed,
+      overall_reason: overallSummary.overall_reason,
+      risk_reason: riskSummary.risk_reason,
+    };
     if (updatedBy) {
       file.updatedBy = updatedBy;
     }
