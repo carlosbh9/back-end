@@ -41,6 +41,11 @@ function buildUserFromSessionPayload(payload) {
   };
 }
 
+function isPublicAuthRoute(req) {
+  const requestPath = String(req.originalUrl || req.url || req.path || '').split('?')[0];
+  return requestPath.endsWith('/auth/login') || requestPath.endsWith('/auth/signup');
+}
+
 function authenticateBridge(req, res, next) {
   const token = extractBearerToken(req);
   if (!token) {
@@ -86,6 +91,10 @@ function authenticateItineraryBridge(req, res, next) {
 }
 
 const authenticate = (req, res, next) => {
+  if (isPublicAuthRoute(req)) {
+    return next();
+  }
+
   const token = extractBearerToken(req);
   if (!token) {
     return sendError(res, createHttpError(403, 'Token no proporcionado', 'AUTH_TOKEN_REQUIRED'));
@@ -173,3 +182,5 @@ module.exports = {
   authenticateQuoterBridge,
   authenticateItineraryBridge,
 };
+
+
