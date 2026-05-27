@@ -1,6 +1,9 @@
 const express = require('express');
 const crypto = require('crypto');
 const PublicBookingLink = require('../../models/publicBookingLink.schema');
+const BookingFile = require('../../models/booking_file.schema');
+const bookingFileSummaryService = require('../../Services/booking-files/booking-file-summary.service');
+const bookingFilePassengerOperationsService = require('../../Services/booking-files/booking-file-passenger-operations.service');
 const { authenticate } = require('../../middlewares/auth');
 const {
   S3Client,
@@ -136,6 +139,266 @@ async function deleteS3Prefix(prefix) {
 
     continuationToken = listed.IsTruncated ? listed.NextContinuationToken : undefined;
   } while (continuationToken);
+}
+
+function normalizeText(value = '') {
+  return String(value || '').trim();
+}
+
+function normalizeDateOrNull(value) {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function hasAnyText(values = []) {
+  return values.some((value) => normalizeText(value));
+}
+
+function normalizePassengerMatchKey(firstName = '', lastName = '', passport = '') {
+  const normalizedPassport = normalizeText(passport).toLowerCase();
+  if (normalizedPassport) {
+    return `passport:${normalizedPassport}`;
+  }
+
+  const fullName = [firstName, lastName]
+    .map((value) => normalizeText(value).toLowerCase())
+    .filter(Boolean)
+    .join(' ');
+
+  return fullName ? `name:${fullName}` : '';
+}
+
+function buildExistingPassengerIndexes(passengers = []) {
+  const byKey = new Map();
+
+  passengers.forEach((passenger, index) => {
+    const key = normalizePassengerMatchKey(
+      passenger?.guest?.firstname,
+      passenger?.guest?.lastname,
+      passenger?.guest?.passport
+    );
+
+    if (key && !byKey.has(key)) {
+      byKey.set(key, index);
+    }
+  });
+
+  return byKey;
+}
+
+function mapPublicGuestToBookingFormPassenger(guest = {}, existingPassenger = {}) {
+  const existingGuest = existingPassenger?.guest || {};
+  const existingHealth = existingPassenger?.health || {};
+  const existingPhysical = existingPassenger?.physicalinfo || {};
+  const existingInsurance = existingPassenger?.insurance || {};
+  const existingComplementary = existingPassenger?.complementaryInfo || {};
+  const existingEmergency = existingPassenger?.econtact || {};
+
+  return {
+    guest: {
+      ...existingGuest,
+      firstname: normalizeText(guest.firstName),
+      lastname: normalizeText(guest.lastName),
+      birthdate: normalizeDateOrNull(guest.birthDate),
+      expirydate: normalizeDateOrNull(guest.expiryDate),
+      gender: normalizeText(guest.gender),
+      nationality: normalizeText(guest.nationality),
+      passport: normalizeText(guest.passportNumber),
+      passportfile: normalizeText(guest.passportFileName),
+      passportkey: normalizeText(guest.passportKey),
+    },
+    econtact: {
+      ...existingEmergency,
+    },
+    health: {
+      ...existingHealth,
+      allergies: normalizeText(guest.dietary?.allergies),
+      dietaryreq: normalizeText(guest.dietary?.dietary),
+      medicalcondition: normalizeText(guest.dietary?.medical),
+    },
+    insurance: {
+      ...existingInsurance,
+    },
+    physicalinfo: {
+      ...existingPhysical,
+      height: normalizeText(guest.physical?.height),
+      weight: normalizeText(guest.physical?.weight),
+      shoeSize: normalizeText(guest.physical?.shoeSize),
+    },
+    complementaryInfo: {
+      ...existingComplementary,
+    },
+    notes: normalizeText(guest.notes),
+  };
+}
+
+function mapFlightsToBookingForm(submission = {}) {
+  const internationalFlights = Array.isArray(submission?.internationalFlights?.flights)
+    ? submission.internationalFlights.flights
+    : [];
+  const domesticFlights = Array.isArray(submission?.ownMadeReservations?.domesticFlights)
+    ? submission.ownMadeReservations.domesticFlights
+    : [];
+
+  const mapFlight = (flight = {}, type = '') => ({
+    type,
+    flightnumber: normalizeText(flight.flightNumber),
+    departuredate: normalizeDateOrNull(flight.departureDate),
+    departuretime: normalizeText(flight.departureTime),
+    arrivaldate: normalizeDateOrNull(flight.arrivalDate),
+    arrivaltime: normalizeText(flight.arrivalTime),
+    departureairport: normalizeText(flight.departureAirport),
+    arrivalairport: normalizeText(flight.arrivalAirport),
+    recordlocator: normalizeText(flight.bookingCode),
+    route: '',
+    extrainfo: '',
+  });
+
+  return [
+    ...internationalFlights
+      .filter((flight) => hasAnyText(Object.values(flight || {})))
+      .map((flight) => mapFlight(flight, 'International')),
+    ...domesticFlights
+      .filter((flight) => hasAnyText(Object.values(flight || {})))
+      .map((flight) => mapFlight(flight, 'Domestic')),
+  ];
+}
+
+function mapRoomsToBookingForm(submission = {}) {
+  const rooms = Array.isArray(submission?.rooms) ? submission.rooms : [];
+  return rooms
+    .filter((room) => hasAnyText([room?.guestNames, room?.roomType, room?.notes]))
+    .map((room) => ({
+      guestNames: normalizeText(room.guestNames),
+      roomType: normalizeText(room.roomType),
+      notes: normalizeText(room.notes),
+    }));
+}
+
+function mapRestaurantsToBookingForm(submission = {}) {
+  const restaurants = Array.isArray(submission?.ownMadeReservations?.restaurants)
+    ? submission.ownMadeReservations.restaurants
+    : [];
+
+  return restaurants
+    .filter((restaurant) => hasAnyText([restaurant?.name, restaurant?.destination, restaurant?.date, restaurant?.time]))
+    .map((restaurant) => ({
+      name: normalizeText(restaurant.name),
+      destination: normalizeText(restaurant.destination),
+      date: normalizeDateOrNull(restaurant.date),
+      time: normalizeText(restaurant.time),
+    }));
+}
+
+function mapYourContactPeople(submission = {}) {
+  const contacts = Array.isArray(submission?.yourContact?.contacts) ? submission.yourContact.contacts : [];
+  return contacts
+    .filter((contact) => hasAnyText([contact?.guest, contact?.occupation, contact?.phone, contact?.email]))
+    .map((contact) => ({
+      guest: normalizeText(contact.guest),
+      occupation: normalizeText(contact.occupation),
+      phone: normalizeText(contact.phone),
+      email: normalizeText(contact.email),
+    }));
+}
+
+function mergeBookingFormFromSubmission(existingBookingForm = {}, submission = {}, { clientId = '', token = '', submittedAt = null } = {}) {
+  const nextClientId = normalizeClientId(clientId || submission?.tracking?.clientId || '');
+  const existingPassengers = Array.isArray(existingBookingForm?.infopax) ? existingBookingForm.infopax : [];
+  const existingPassengerIndexes = buildExistingPassengerIndexes(existingPassengers);
+  const guests = Array.isArray(submission?.guests) ? submission.guests : [];
+  const usedPassengerIndexes = new Set();
+
+  const infopax = guests.map((guest, index) => {
+    const matchKey = normalizePassengerMatchKey(guest?.firstName, guest?.lastName, guest?.passportNumber);
+    const matchedIndex = matchKey && existingPassengerIndexes.has(matchKey)
+      ? existingPassengerIndexes.get(matchKey)
+      : index < existingPassengers.length
+        ? index
+        : -1;
+
+    const existingPassenger = matchedIndex >= 0 && !usedPassengerIndexes.has(matchedIndex)
+      ? existingPassengers[matchedIndex]
+      : {};
+
+    if (matchedIndex >= 0) {
+      usedPassengerIndexes.add(matchedIndex);
+    }
+
+    return mapPublicGuestToBookingFormPassenger(guest, existingPassenger);
+  });
+
+  return {
+    ...existingBookingForm,
+    meta: {
+      ...(existingBookingForm?.meta || {}),
+      source: 'public-link',
+      clientId: nextClientId,
+      publicLinkToken: normalizeText(token),
+      submittedAt: submittedAt || existingBookingForm?.meta?.submittedAt || null,
+      lastUpdatedAt: new Date(),
+      status: 'SUBMITTED',
+    },
+    infopax,
+    emergencyContact: {
+      ...(existingBookingForm?.emergencyContact || {}),
+      name: normalizeText(submission?.emergencyContact?.name),
+      relationship: normalizeText(submission?.emergencyContact?.relationship),
+      homePhone: normalizeText(submission?.emergencyContact?.homePhone),
+      cellPhone: normalizeText(submission?.emergencyContact?.cellPhone),
+    },
+    yourContact: {
+      ...(existingBookingForm?.yourContact || {}),
+      street: normalizeText(submission?.yourContact?.street),
+      city: normalizeText(submission?.yourContact?.city),
+      state: normalizeText(submission?.yourContact?.state),
+      zip: normalizeText(submission?.yourContact?.zip),
+      email: normalizeText(submission?.yourContact?.email),
+      homePhone: normalizeText(submission?.yourContact?.homePhone),
+      cellPhone: normalizeText(submission?.yourContact?.cellPhone),
+      contacts: mapYourContactPeople(submission),
+    },
+    travelInsurance: {
+      ...(existingBookingForm?.travelInsurance || {}),
+      companyName: normalizeText(submission?.travelInsurance?.companyName),
+      policyNumber: normalizeText(submission?.travelInsurance?.policyNumber),
+    },
+    resvflights: mapFlightsToBookingForm(submission),
+    resvroom: mapRoomsToBookingForm(submission),
+    resvrestaurants: mapRestaurantsToBookingForm(submission),
+    resvhotels: Array.isArray(existingBookingForm?.resvhotels) ? existingBookingForm.resvhotels : [],
+    resvservices: Array.isArray(existingBookingForm?.resvservices) ? existingBookingForm.resvservices : [],
+    additionalInfo: normalizeText(submission?.additionalInfo),
+  };
+}
+
+async function syncBookingFileBookingFormFromSubmission({ clientId = '', token = '', submission = {}, submittedAt = null } = {}) {
+  const linkedFileId = await bookingFilePassengerOperationsService.resolveBookingFileIdByClientId(
+    clientId || submission?.tracking?.clientId || ''
+  );
+
+  if (!linkedFileId) {
+    return null;
+  }
+
+  const bookingFile = await BookingFile.findById(linkedFileId);
+  if (!bookingFile) {
+    return null;
+  }
+
+  bookingFile.booking_form = mergeBookingFormFromSubmission(
+    bookingFile.booking_form || {},
+    submission,
+    {
+      clientId,
+      token,
+      submittedAt,
+    }
+  );
+
+  await bookingFile.save();
+  return String(bookingFile._id);
 }
 
 
@@ -337,6 +600,17 @@ router.post('/public-booking-links/:token/submit', upload.any(), async (req, res
     link.status = 'used';
     await link.save();
 
+    const linkedFileId = await syncBookingFileBookingFormFromSubmission({
+      clientId: link.clientId,
+      token,
+      submission,
+      submittedAt: link.usedAt,
+    });
+
+    if (linkedFileId) {
+      await bookingFileSummaryService.recalculateFileSummary(linkedFileId);
+    }
+
     // 7) Notificar Power Automate
     await fetch(process.env.POWER_AUTOMATE_URL, {
       method: 'POST',
@@ -471,6 +745,21 @@ router.put('/public-booking-links/:token', authenticate, async (req, res) => {
     }
 
     await link.save();
+
+    if (submission !== undefined || clientId !== undefined) {
+      const linkedFileId = await syncBookingFileBookingFormFromSubmission({
+        clientId: link.clientId,
+        token,
+        submission: link.submission || {},
+        submittedAt: link.usedAt,
+      });
+
+      if (linkedFileId) {
+        await bookingFileSummaryService.recalculateFileSummary(linkedFileId, {
+          updatedBy: req.user?.id || null,
+        });
+      }
+    }
 
     return res.status(200).json({
       ok: true,

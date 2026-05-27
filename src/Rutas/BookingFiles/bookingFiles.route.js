@@ -5,6 +5,10 @@ const BookingFile = require('../../models/booking_file.schema');
 const ServiceOrder = require('../../models/service_order.schema');
 const bookingFileSummaryService = require('../../Services/booking-files/booking-file-summary.service');
 const bookingFileBibliaService = require('../../Services/booking-files/booking-file-biblia.service');
+const bookingFilePassengerOperationsService = require('../../Services/booking-files/booking-file-passenger-operations.service');
+const bookingFileFinancialService = require('../../Services/booking-files/booking-file-financial.service');
+const bookingFileIncidentService = require('../../Services/booking-files/booking-file-incident.service');
+const bookingFilePretripReadinessService = require('../../Services/booking-files/booking-file-pretrip-readiness.service');
 const {
   buildOperationalItineraryFromSnapshot,
   updateOperationalItineraryItem,
@@ -83,12 +87,22 @@ async function populateBookingFile(bookingFile) {
   };
 }
 
+async function enrichBookingFile(bookingFile) {
+  if (!bookingFile) return null;
+
+  const passengerEnriched = await bookingFilePassengerOperationsService.enrichBookingFile(bookingFile);
+  const financialEnriched = await bookingFileFinancialService.enrichBookingFile(passengerEnriched, bookingFile.service_order_ids || []);
+  const incidentEnriched = bookingFileIncidentService.enrichBookingFile(financialEnriched, bookingFile.service_order_ids || []);
+  return bookingFilePretripReadinessService.enrichBookingFile(incidentEnriched, bookingFile.service_order_ids || []);
+}
+
 async function findBookingFile(filter) {
   const item = await BookingFile.findOne(filter)
     .populate('contact_id', '_id name email phone status')
     .populate('quoter_id', '_id guest status soldAt booking_file_id')
     .lean();
-  return populateBookingFile(item);
+  const hydrated = await populateBookingFile(item);
+  return enrichBookingFile(hydrated);
 }
 
 router.get('/', async (req, res) => {
@@ -158,6 +172,8 @@ router.get('/biblia/daily', async (req, res) => {
       date: req.query.date,
       area: req.query.area,
       status: req.query.status,
+      alert: req.query.alert,
+      destination: req.query.destination,
     });
     return res.status(200).json(result);
   } catch (error) {
@@ -286,10 +302,16 @@ router.post('/:id/recalculate-summary', async (req, res) => {
       return sendError(res, createHttpError(400, 'Booking file id is invalid', 'BOOKING_FILE_ID_INVALID'));
     }
 
-    const updated = await bookingFileSummaryService.recalculateFileSummary(req.params.id, {
+    await bookingFileSummaryService.recalculateFileSummary(req.params.id, {
       updatedBy: req.user?.id || null,
     });
-    return res.status(200).json(updated);
+
+    const refreshed = await findBookingFile({ _id: req.params.id });
+    if (!refreshed) {
+      return sendError(res, createHttpError(404, 'Booking file not found', 'BOOKING_FILE_NOT_FOUND'));
+    }
+
+    return res.status(200).json(refreshed);
   } catch (error) {
     return sendError(res, error, {
       status: 400,
@@ -310,6 +332,28 @@ router.get('/:id/summary', async (req, res) => {
       return sendError(res, createHttpError(404, 'Booking file not found', 'BOOKING_FILE_NOT_FOUND'));
     }
 
+    const serviceOrders = await resolveServiceOrdersForFile(bookingFile);
+    const passengerOperationsHub = await bookingFilePassengerOperationsService.buildPassengerOperationsHub(bookingFile);
+    const passengerInfoStatus = bookingFilePassengerOperationsService.buildPassengerInfoStatus({
+      file: bookingFile,
+      existingStatus: bookingFile.passenger_info_status,
+      hub: passengerOperationsHub,
+    });
+    const financialOverview = await bookingFileFinancialService.buildFinancialOverview(bookingFile, serviceOrders);
+    const incidentOverview = bookingFileIncidentService.buildIncidentOverview({
+      ...bookingFile,
+      passenger_info_status: passengerInfoStatus,
+      passenger_operations: passengerOperationsHub,
+      financial_overview: financialOverview,
+    }, serviceOrders);
+    const pretripReadiness = bookingFilePretripReadinessService.buildPretripReadiness({
+      ...bookingFile,
+      passenger_info_status: passengerInfoStatus,
+      passenger_operations: passengerOperationsHub,
+      financial_overview: financialOverview,
+      incident_overview: incidentOverview,
+    }, serviceOrders);
+
     return res.status(200).json({
       _id: bookingFile._id,
       fileCode: bookingFile.fileCode,
@@ -318,13 +362,17 @@ router.get('/:id/summary', async (req, res) => {
       reservations_status: bookingFile.reservations_status,
       payments_status: bookingFile.payments_status,
       deliverables_status: bookingFile.deliverables_status,
-      passenger_info_status: bookingFile.passenger_info_status,
+      passenger_info_status: passengerInfoStatus,
       summary_context: bookingFile.summary_context,
       risk_level: bookingFile.risk_level,
       next_action: bookingFile.next_action,
       next_action_due_at: bookingFile.next_action_due_at,
       last_activity_at: bookingFile.last_activity_at,
       is_cancelled: bookingFile.is_cancelled,
+      passenger_operations: passengerOperationsHub,
+      financial_overview: financialOverview,
+      incident_overview: incidentOverview,
+      pretrip_readiness: pretripReadiness,
     });
   } catch (error) {
     return sendError(res, error, {

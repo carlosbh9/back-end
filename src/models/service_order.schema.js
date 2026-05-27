@@ -7,6 +7,8 @@ const ORDER_AREAS = ['RESERVAS', 'OPERACIONES', 'CONTABILIDAD', 'PAGOS'];
 const ORDER_TYPES = ['HOTEL', 'TRANSPORT', 'TOUR', 'TICKETS', 'PREPAYMENT', 'INVOICE'];
 const ORDER_STATUSES = ['PENDING', 'IN_PROGRESS', 'WAITING_INFO', 'DONE', 'CANCELLED'];
 const ORDER_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+const RESERVATION_STATUSES = ['DRAFT', 'REQUESTED', 'OPTIONED', 'CONFIRMED', 'RECONFIRMED', 'CANCELLED', 'FAILED'];
+const RESERVATION_CRITICALITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const ACCOUNTING_STATUSES = ['NOT_REQUIRED', 'PENDING_INVOICE', 'INVOICED', 'PARTIALLY_PAID', 'PAID'];
 const ATTACHMENT_TYPES = ['VOUCHER', 'INVOICE', 'PAYMENT_PROOF', 'RESERVATION_CONFIRMATION', 'TICKET', 'PASSPORT_COPY', 'OTHER'];
 const PAYMENT_STATUSES = ['NOT_REQUIRED', 'PENDING', 'PARTIAL', 'PAID', 'REFUNDED'];
@@ -78,6 +80,47 @@ const financialsSchema = new Schema({
   invoiceDate: { type: Date, default: null }
 }, { _id: false });
 
+const confirmationEvidenceSchema = new Schema({
+  type: {
+    type: String,
+    enum: ['EMAIL', 'PDF', 'PORTAL', 'WHATSAPP', 'PHONE', 'OTHER'],
+    default: 'OTHER',
+  },
+  reference: { type: String, default: '' },
+  notes: { type: String, default: '' },
+  capturedAt: { type: Date, default: null },
+}, { _id: false });
+
+const reservationControlSchema = new Schema({
+  status: {
+    type: String,
+    enum: RESERVATION_STATUSES,
+    default: 'DRAFT',
+    index: true,
+  },
+  criticality: {
+    type: String,
+    enum: RESERVATION_CRITICALITIES,
+    default: 'MEDIUM',
+    index: true,
+  },
+  deadlineAt: { type: Date, default: null, index: true },
+  requestedAt: { type: Date, default: null },
+  optionExpiresAt: { type: Date, default: null },
+  confirmedAt: { type: Date, default: null },
+  requiresReconfirmation: { type: Boolean, default: false, index: true },
+  reconfirmBy: { type: Date, default: null, index: true },
+  reconfirmedAt: { type: Date, default: null },
+  supplierName: { type: String, default: '' },
+  supplierContact: { type: String, default: '' },
+  supplierReference: { type: String, default: '' },
+  providerResponseNotes: { type: String, default: '' },
+  confirmationEvidence: {
+    type: confirmationEvidenceSchema,
+    default: () => ({}),
+  },
+}, { _id: false });
+
 const serviceOrderSchema = new Schema({
   file_id: { type: Schema.Types.ObjectId, ref: 'BookingFile', required: true, index: true },
   contactId: { type: Schema.Types.ObjectId, ref: 'Contact', required: true, index: true },
@@ -106,6 +149,7 @@ const serviceOrderSchema = new Schema({
   sourceSnapshot: { type: Schema.Types.Mixed, required: true },
   accountingStatus: { type: String, enum: ACCOUNTING_STATUSES, default: 'NOT_REQUIRED' },
   financials: { type: financialsSchema, default: () => ({}) },
+  reservationControl: { type: reservationControlSchema, default: () => ({}) },
   attachments: { type: [attachmentSchema], default: [] },
   auditLogs: { type: [auditLogSchema], default: [] },
   lastStatusChangeAt: { type: Date, default: Date.now },

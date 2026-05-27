@@ -81,12 +81,32 @@ class QuoterV2Service {
     return created.toObject();
   }
 
-  async update(id, payload) {
+  async update(id, payload, options = {}) {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return null;
     }
 
-    const updated = await QuoterV2.findByIdAndUpdate(id, payload, { new: true, runValidators: true }).lean();
+    const current = await QuoterV2.findById(id).select('status total_prices').lean();
+    if (!current) return null;
+
+    const newStatus = payload.status || current.status;
+    const historyEntry = {
+      changedAt: new Date(),
+      changedBy: options.changedBy || null,
+      action: newStatus !== current.status ? 'STATUS_CHANGED' : 'UPDATED',
+      prevStatus: current.status,
+      newStatus,
+      prevPricePP: current.total_prices?.price_pp ?? null,
+      newPricePP: payload.total_prices?.price_pp ?? null,
+      prevFinalCost: current.total_prices?.final_cost ?? null,
+      newFinalCost: payload.total_prices?.final_cost ?? null,
+    };
+
+    const updated = await QuoterV2.findByIdAndUpdate(
+      id,
+      { $set: payload, $push: { history: historyEntry } },
+      { new: true, runValidators: true }
+    ).lean();
     if (!updated) return null;
 
     await Contact.findOneAndUpdate(

@@ -11,6 +11,7 @@ const bookingFileSummaryService = require('../../../Services/booking-files/booki
 const { buildOperationalItineraryFromSnapshot } = require('../../../Services/booking-files/booking-file-operational-itinerary.service');
 const bookingFileSaleNotificationService = require('../../../Services/booking-files/booking-file-sale-notification.service');
 const tariffV2Service = require('../../tariff-v2/application/services/tariff-v2.service');
+const notificationService = require('../../../Services/notifications/notification.service');
 const {
   buildContactAccessFilter,
   findAccessibleContactById,
@@ -508,10 +509,11 @@ class QuoterV2Controller {
       await assertValidTariffReferences(payload);
 
       const contactId = payload.contact_id || await resolveContactForQuote(payload, req.user);
-      const updated = await quoterV2Service.update(req.params.id, {
-        ...payload,
-        contact_id: contactId,
-      });
+      const updated = await quoterV2Service.update(
+        req.params.id,
+        { ...payload, contact_id: contactId },
+        { changedBy: req.user?.id || null }
+      );
       if (!updated) {
         return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
       }
@@ -627,10 +629,22 @@ class QuoterV2Controller {
         });
       }
 
+      const prevStatusBeforeSale = quoter.status;
       quoter.status = 'SOLD';
       quoter.soldAt = quoter.soldAt || new Date();
       quoter.soldBy = quoter.soldBy || changedBy;
       quoter.booking_file_id = bookingFile._id;
+      quoter.history.push({
+        changedAt: new Date(),
+        changedBy,
+        action: 'SOLD',
+        prevStatus: prevStatusBeforeSale,
+        newStatus: 'SOLD',
+        prevPricePP: quoter.total_prices?.price_pp ?? null,
+        newPricePP: null,
+        prevFinalCost: quoter.total_prices?.final_cost ?? null,
+        newFinalCost: null,
+      });
       await quoter.save();
 
       contact.soldQuoterId = quoter._id;
@@ -652,6 +666,13 @@ class QuoterV2Controller {
         { new: true }
       );
       bookingFile = await bookingFileSummaryService.recalculateFileSummary(String(bookingFile._id), { updatedBy: changedBy });
+
+      notificationService.createForOperationsUsers({
+        type: 'SALE_CONFIRMED',
+        message: `Nueva venta confirmada: ${quoter.guest || quoter.name_quoter || 'Sin nombre'} (${fileCode}). Órdenes de servicio generadas y listas para gestionar.`,
+        entityId: quoter._id,
+        entityType: 'quoter',
+      }).catch(() => {});
 
       let notification = {
         sent: false,
@@ -763,9 +784,21 @@ class QuoterV2Controller {
         await bookingFile.save();
       }
 
+      const prevStatusBeforeRevert = quoter.status;
       quoter.status = 'CANCELLED';
       quoter.soldAt = null;
       quoter.soldBy = null;
+      quoter.history.push({
+        changedAt: new Date(),
+        changedBy,
+        action: 'REVERTED',
+        prevStatus: prevStatusBeforeRevert,
+        newStatus: 'CANCELLED',
+        prevPricePP: null,
+        newPricePP: null,
+        prevFinalCost: null,
+        newFinalCost: null,
+      });
       await quoter.save();
 
       if (Array.isArray(contact.cotizations)) {
@@ -831,6 +864,28 @@ class QuoterV2Controller {
     }
   }
 
+  async getHistory(req, res) {
+    try {
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Quoter V2 id is invalid', 'QUOTER_V2_ID_INVALID'));
+      }
+
+      const quoter = await QuoterV2.findById(req.params.id).select('history').lean();
+      if (!quoter) {
+        return sendError(res, createHttpError(404, 'Quoter V2 not found', 'QUOTER_V2_NOT_FOUND'));
+      }
+
+      const history = [...(quoter.history || [])].reverse();
+      return res.status(200).json({ history });
+    } catch (error) {
+      return sendError(res, error, {
+        status: 500,
+        message: 'Error loading quoter history',
+        errorCode: 'QUOTER_V2_HISTORY_FETCH_FAILED',
+      });
+    }
+  }
+
   async calculatePrices(req, res) {
     try {
       const body = req.body || {};
@@ -843,11 +898,20 @@ class QuoterV2Controller {
       const result = await quoterV2PricingService.calculatePrices(body);
       return res.status(200).json(result);
     } catch (error) {
-      return sendError(res, error, {
-        status: 400,
-        message: 'Error calculating quoter-v2 prices',
-        errorCode: 'QUOTER_V2_PRICE_CALCULATION_FAILED',
+      console.error('[quoter-v2] calculatePrices failed', {
+        body: req.body,
+        message: error?.message,
+        details: error?.details,
       });
+      return sendError(
+        res,
+        createHttpError(
+          error?.status || 400,
+          error?.message || 'Error calculating quoter-v2 prices',
+          error?.errorCode || 'QUOTER_V2_PRICE_CALCULATION_FAILED',
+          error?.details,
+        ),
+      );
     }
   }
 }

@@ -1,5 +1,6 @@
 const ServiceOrder = require('../../models/service_order.schema');
 const bookingFileSummaryService = require('../booking-files/booking-file-summary.service');
+const serviceOrderAutomationService = require('./service-order-automation.service');
 const { PERMISSIONS } = require('../../security/permissions');
 const { createHttpError } = require('../../utils/httpError');
 const {
@@ -22,6 +23,67 @@ class ServiceOrderService {
     return String(value || '').trim();
   }
 
+  normalizeDate(value) {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    const parsed = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  normalizeReservationControlPayload(payload = {}, previous = {}) {
+    const nextStatus = this.normalizeText(payload.status || previous.status || 'DRAFT').toUpperCase() || 'DRAFT';
+    const next = {
+      ...previous,
+      ...payload,
+      status: nextStatus,
+      criticality: this.normalizeText(payload.criticality || previous.criticality || 'MEDIUM').toUpperCase() || 'MEDIUM',
+      supplierName: this.normalizeText(payload.supplierName ?? previous.supplierName),
+      supplierContact: this.normalizeText(payload.supplierContact ?? previous.supplierContact),
+      supplierReference: this.normalizeText(payload.supplierReference ?? previous.supplierReference),
+      providerResponseNotes: this.normalizeText(payload.providerResponseNotes ?? previous.providerResponseNotes),
+      deadlineAt: this.normalizeDate(Object.prototype.hasOwnProperty.call(payload, 'deadlineAt') ? payload.deadlineAt : previous.deadlineAt),
+      requestedAt: this.normalizeDate(Object.prototype.hasOwnProperty.call(payload, 'requestedAt') ? payload.requestedAt : previous.requestedAt),
+      optionExpiresAt: this.normalizeDate(Object.prototype.hasOwnProperty.call(payload, 'optionExpiresAt') ? payload.optionExpiresAt : previous.optionExpiresAt),
+      confirmedAt: this.normalizeDate(Object.prototype.hasOwnProperty.call(payload, 'confirmedAt') ? payload.confirmedAt : previous.confirmedAt),
+      requiresReconfirmation: Object.prototype.hasOwnProperty.call(payload, 'requiresReconfirmation')
+        ? !!payload.requiresReconfirmation
+        : !!previous.requiresReconfirmation,
+      reconfirmBy: this.normalizeDate(Object.prototype.hasOwnProperty.call(payload, 'reconfirmBy') ? payload.reconfirmBy : previous.reconfirmBy),
+      reconfirmedAt: this.normalizeDate(Object.prototype.hasOwnProperty.call(payload, 'reconfirmedAt') ? payload.reconfirmedAt : previous.reconfirmedAt),
+      confirmationEvidence: {
+        ...(previous.confirmationEvidence || {}),
+        ...(payload.confirmationEvidence || {}),
+        type: this.normalizeText(payload.confirmationEvidence?.type || previous.confirmationEvidence?.type || 'OTHER').toUpperCase() || 'OTHER',
+        reference: this.normalizeText(payload.confirmationEvidence?.reference ?? previous.confirmationEvidence?.reference),
+        notes: this.normalizeText(payload.confirmationEvidence?.notes ?? previous.confirmationEvidence?.notes),
+        capturedAt: this.normalizeDate(
+          Object.prototype.hasOwnProperty.call(payload.confirmationEvidence || {}, 'capturedAt')
+            ? payload.confirmationEvidence?.capturedAt
+            : previous.confirmationEvidence?.capturedAt
+        ),
+      },
+    };
+
+    if (next.status === 'REQUESTED' && !next.requestedAt) {
+      next.requestedAt = new Date();
+    }
+    if (['CONFIRMED', 'RECONFIRMED'].includes(next.status) && !next.confirmedAt) {
+      next.confirmedAt = new Date();
+    }
+    if (next.status === 'RECONFIRMED' && !next.reconfirmedAt) {
+      next.reconfirmedAt = new Date();
+    }
+    if (!next.requiresReconfirmation) {
+      next.reconfirmBy = null;
+      next.reconfirmedAt = null;
+    }
+    if (next.confirmationEvidence?.reference || next.confirmationEvidence?.notes) {
+      next.confirmationEvidence.capturedAt = next.confirmationEvidence.capturedAt || new Date();
+    }
+
+    return next;
+  }
+
   buildAuditLog({ action, by = null, message = '', payload = {}, source = 'USER_ACTION' }) {
     return {
       action,
@@ -31,6 +93,65 @@ class ServiceOrderService {
         source,
         ...payload,
       },
+    };
+  }
+
+  normalizeFinancialNumber(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  buildFinancialAdjustmentSummary(previous = {}, next = {}) {
+    const previousExpectedCost = this.normalizeFinancialNumber(previous.expectedCost);
+    const nextExpectedCost = this.normalizeFinancialNumber(next.expectedCost);
+    const previousPaidAmount = this.normalizeFinancialNumber(previous.paidAmount);
+    const nextPaidAmount = this.normalizeFinancialNumber(next.paidAmount);
+    const expectedCostDelta = Math.round(((nextExpectedCost - previousExpectedCost) + Number.EPSILON) * 100) / 100;
+    const paidAmountDelta = Math.round(((nextPaidAmount - previousPaidAmount) + Number.EPSILON) * 100) / 100;
+    const changedFields = [
+      previous.supplierName !== next.supplierName ? 'supplierName' : '',
+      previous.supplierReference !== next.supplierReference ? 'supplierReference' : '',
+      previous.currency !== next.currency ? 'currency' : '',
+      previous.expectedCost !== next.expectedCost ? 'expectedCost' : '',
+      previous.paidAmount !== next.paidAmount ? 'paidAmount' : '',
+      previous.paymentStatus !== next.paymentStatus ? 'paymentStatus' : '',
+      previous.paymentMethod !== next.paymentMethod ? 'paymentMethod' : '',
+      previous.paymentDueDate !== next.paymentDueDate ? 'paymentDueDate' : '',
+      previous.paymentDate !== next.paymentDate ? 'paymentDate' : '',
+      previous.invoiceNumber !== next.invoiceNumber ? 'invoiceNumber' : '',
+      previous.invoiceDate !== next.invoiceDate ? 'invoiceDate' : '',
+    ].filter(Boolean);
+
+    let adjustmentType = 'FINANCIAL_UPDATE';
+    let message = 'Financial control updated';
+
+    if (expectedCostDelta > 0) {
+      adjustmentType = 'OVERCOST';
+      message = 'Projected supplier cost increased after sale';
+    } else if (expectedCostDelta < 0) {
+      adjustmentType = 'DISCOUNT';
+      message = 'Projected supplier cost decreased after sale';
+    } else if (paidAmountDelta !== 0) {
+      adjustmentType = 'PAYMENT_UPDATE';
+      message = paidAmountDelta > 0
+        ? 'Supplier payment registered'
+        : 'Supplier payment adjusted';
+    } else if (changedFields.some((field) => ['invoiceNumber', 'invoiceDate', 'paymentDate', 'paymentDueDate'].includes(field))) {
+      adjustmentType = 'BILLING_UPDATE';
+      message = 'Billing or payment dates updated';
+    }
+
+    return {
+      adjustmentType,
+      message,
+      changedFields,
+      previousExpectedCost,
+      nextExpectedCost,
+      expectedCostDelta,
+      previousPaidAmount,
+      nextPaidAmount,
+      paidAmountDelta,
+      marginImpactDelta: expectedCostDelta * -1,
     };
   }
 
@@ -67,6 +188,12 @@ class ServiceOrderService {
   async refreshFileSummary(order, userId = null) {
     if (!order?.file_id) return;
     await bookingFileSummaryService.recalculateFileSummary(String(order.file_id), { updatedBy: userId });
+  }
+
+  serializeOrder(order) {
+    if (!order) return null;
+    const plain = order?.toObject?.() || order;
+    return serviceOrderAutomationService.enrichOrder(plain);
   }
 
   getActiveStage(order) {
@@ -376,7 +503,12 @@ class ServiceOrderService {
       ServiceOrder.countDocuments(query)
     ]);
 
-    return { items, total, page: safePage, pageSize: safePageSize };
+    return {
+      items: items.map((item) => this.serializeOrder(item)),
+      total,
+      page: safePage,
+      pageSize: safePageSize
+    };
   }
 
   async getById(id, userRole = '') {
@@ -385,7 +517,7 @@ class ServiceOrderService {
     if (!this.canManageOrderByRole(order, userRole)) {
       throw createHttpError(403, 'You do not have permissions to view this order', 'SERVICE_ORDER_FORBIDDEN');
     }
-    return order;
+    return this.serializeOrder(order);
   }
 
   async getByContact(contactId, userRole = '') {
@@ -394,7 +526,8 @@ class ServiceOrderService {
     if (allowedAreas.length > 0) {
       query.area = { $in: allowedAreas };
     }
-    return ServiceOrder.find(query).sort({ createdAt: -1 }).lean();
+    const items = await ServiceOrder.find(query).sort({ createdAt: -1 }).lean();
+    return items.map((item) => this.serializeOrder(item));
   }
 
   async updateStatus({ id, status, reason = '', userId = null, userRole = '', userPermissions = [] }) {
@@ -468,7 +601,7 @@ class ServiceOrderService {
     }));
     await order.save();
     await this.refreshFileSummary(order, userId);
-    return order.toObject();
+    return this.serializeOrder(order);
   }
 
   async assign({ id, assigneeId, userId = null, userRole = '', userPermissions = [] }) {
@@ -493,7 +626,7 @@ class ServiceOrderService {
     }));
     await order.save();
     await this.refreshFileSummary(order, userId);
-    return order.toObject();
+    return this.serializeOrder(order);
   }
 
   async updateChecklistItem({ id, itemId, done, userId = null, userRole = '', userPermissions = [] }) {
@@ -551,7 +684,7 @@ class ServiceOrderService {
     }));
     await order.save();
     await this.refreshFileSummary(order, userId);
-    return order.toObject();
+    return this.serializeOrder(order);
   }
 
   async updateStage({ id, stageCode, comment = '', userId = null, userRole = '', userPermissions = [] }) {
@@ -578,7 +711,7 @@ class ServiceOrderService {
     const transitionContext = this.ensureStageTransitionAllowed(order, previousStage, nextStage, transitionComment);
 
     if (transitionContext.direction === 'STAY') {
-      return order.toObject();
+      return this.serializeOrder(order);
     }
 
     const now = new Date();
@@ -648,7 +781,7 @@ class ServiceOrderService {
     }));
     await order.save();
     await this.refreshFileSummary(order, userId);
-    return order.toObject();
+    return this.serializeOrder(order);
   }
 
   async updateFinancials({ id, payload = {}, userId = null, userRole = '', userPermissions = [] }) {
@@ -659,20 +792,48 @@ class ServiceOrderService {
       throw createHttpError(403, 'You do not have permissions to update financials for this order', 'SERVICE_ORDER_FORBIDDEN');
     }
 
-    const previous = order.financials ? order.financials.toObject?.() || { ...order.financials } : {};
+    const previous = serviceOrderAutomationService.enrichOrder(order)?.financials || {};
     order.financials = {
       ...(previous || {}),
       ...(payload || {})
     };
+    const summary = this.buildFinancialAdjustmentSummary(previous, order.financials);
     order.updatedBy = userId;
     order.auditLogs.push(this.buildAuditLog({
       action: 'FINANCIALS_UPDATED',
       by: userId,
-      payload: { kind: 'FINANCIALS', previous, next: order.financials }
+      message: summary.message,
+      payload: { kind: 'FINANCIALS', previous, next: order.financials, summary }
     }));
     await order.save();
     await this.refreshFileSummary(order, userId);
-    return order.toObject();
+    return this.serializeOrder(order);
+  }
+
+  async updateReservationControl({ id, payload = {}, userId = null, userRole = '' }) {
+    const order = await ServiceOrder.findById(id);
+    if (!order) return null;
+
+    this.ensureOrderAccess(order, userRole);
+
+    const previous = order.reservationControl?.toObject?.() || { ...(order.reservationControl || {}) };
+    const next = this.normalizeReservationControlPayload(payload, previous);
+
+    order.reservationControl = next;
+    order.updatedBy = userId;
+    order.auditLogs.push(this.buildAuditLog({
+      action: 'RESERVATION_CONTROL_UPDATED',
+      by: userId,
+      message: next.providerResponseNotes || '',
+      payload: {
+        kind: 'RESERVATION_CONTROL',
+        previous,
+        next,
+      },
+    }));
+    await order.save();
+    await this.refreshFileSummary(order, userId);
+    return this.serializeOrder(order);
   }
 
   async addAttachment({ id, payload = {}, userId = null, userRole = '', userPermissions = [] }) {
@@ -716,7 +877,7 @@ class ServiceOrderService {
     }));
     await order.save();
     await this.refreshFileSummary(order, userId);
-    return order.toObject();
+    return this.serializeOrder(order);
   }
 
   async removeAttachment({ id, attachmentId, userId = null, userRole = '', userPermissions = [] }) {
@@ -741,7 +902,7 @@ class ServiceOrderService {
     }));
     await order.save();
     await this.refreshFileSummary(order, userId);
-    return order.toObject();
+    return this.serializeOrder(order);
   }
 
   async canManageById(id, userRole = '', userPermissions = []) {

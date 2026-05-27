@@ -1,8 +1,11 @@
 const BookingFile = require('../../models/booking_file.schema');
 const ServiceOrder = require('../../models/service_order.schema');
+const bookingFilePassengerOperationsService = require('./booking-file-passenger-operations.service');
 
 const OPEN_ORDER_STATUSES = ['PENDING', 'IN_PROGRESS', 'WAITING_INFO'];
 const DONE_ORDER_STATUSES = ['DONE'];
+const CONFIRMED_RESERVATION_STATUSES = ['CONFIRMED', 'RECONFIRMED'];
+const TERMINAL_RESERVATION_STATUSES = ['CONFIRMED', 'RECONFIRMED', 'CANCELLED'];
 
 class BookingFileSummaryService {
   normalizeStatusList(values = []) {
@@ -22,6 +25,51 @@ class BookingFileSummaryService {
     return Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
   }
 
+  toDateKey(value) {
+    const parsed = this.normalizeDate(value);
+    return parsed ? parsed.toISOString().slice(0, 10) : '';
+  }
+
+  isReservationManagedOrder(order = {}) {
+    return order?.area === 'RESERVAS' || ['HOTEL', 'TRANSPORT', 'TOUR', 'TICKETS'].includes(order?.type);
+  }
+
+  normalizeReservationControl(order = {}) {
+    const current = order?.reservationControl || {};
+    const inferredStatus = order?.status === 'DONE'
+      ? 'CONFIRMED'
+      : order?.status === 'CANCELLED'
+        ? 'CANCELLED'
+        : order?.status === 'WAITING_INFO'
+          ? 'FAILED'
+          : order?.status === 'IN_PROGRESS'
+            ? 'REQUESTED'
+            : 'DRAFT';
+    const inferredCriticality = order?.priority === 'URGENT'
+      ? 'CRITICAL'
+      : order?.priority === 'HIGH'
+        ? 'HIGH'
+        : order?.priority === 'LOW'
+          ? 'LOW'
+          : 'MEDIUM';
+
+    return {
+      status: current.status || inferredStatus,
+      criticality: current.criticality || inferredCriticality,
+      deadlineAt: current.deadlineAt || order?.dueDate || null,
+      requestedAt: current.requestedAt || null,
+      optionExpiresAt: current.optionExpiresAt || null,
+      confirmedAt: current.confirmedAt || null,
+      requiresReconfirmation: !!current.requiresReconfirmation,
+      reconfirmBy: current.reconfirmBy || null,
+      reconfirmedAt: current.reconfirmedAt || null,
+      supplierName: current.supplierName || order?.financials?.supplierName || order?.sourceSnapshot?.operator || order?.sourceSnapshot?.name || '',
+      supplierContact: current.supplierContact || '',
+      supplierReference: current.supplierReference || order?.financials?.supplierReference || '',
+      providerResponseNotes: current.providerResponseNotes || '',
+    };
+  }
+
   mapAreaStatus(orders = []) {
     if (!orders.length) return 'NOT_STARTED';
     const active = orders.filter((order) => !['CANCELLED'].includes(order.status));
@@ -38,6 +86,28 @@ class BookingFileSummaryService {
     if (done > 0 && done < total) return 'PARTIAL';
     if (inProgress > 0) return 'IN_PROGRESS';
     if (pending === total) return 'PENDING';
+    return 'PENDING';
+  }
+
+  mapReservationsAreaStatus(orders = [], now = new Date()) {
+    if (!orders.length) return 'NOT_STARTED';
+
+    const normalized = orders.map((order) => this.normalizeReservationControl(order));
+    const active = normalized.filter((control) => control.status !== 'CANCELLED');
+    if (!active.length) return 'CANCELLED';
+
+    const confirmed = active.filter((control) => CONFIRMED_RESERVATION_STATUSES.includes(control.status)).length;
+    const failed = active.filter((control) => control.status === 'FAILED').length;
+    const requested = active.filter((control) => ['REQUESTED', 'OPTIONED'].includes(control.status)).length;
+    const overdue = active.filter((control) => {
+      const deadlineKey = this.toDateKey(control.deadlineAt);
+      return deadlineKey && deadlineKey < this.toDateKey(now) && !TERMINAL_RESERVATION_STATUSES.includes(control.status);
+    }).length;
+
+    if (confirmed === active.length) return 'COMPLETED';
+    if (failed > 0 || overdue > 0) return 'BLOCKED';
+    if (confirmed > 0) return 'PARTIAL';
+    if (requested > 0) return 'IN_PROGRESS';
     return 'PENDING';
   }
 
@@ -90,6 +160,34 @@ class BookingFileSummaryService {
       blocked_orders: blockedOrders.length,
       overdue_orders: overdueOrders.length,
       due_today_orders: dueTodayOrders.length,
+    };
+  }
+
+  buildReservationMetrics(orders = [], now = new Date()) {
+    const todayKey = this.toDateKey(now);
+    const reservationOrders = orders.filter((order) => this.isReservationManagedOrder(order));
+    const controls = reservationOrders.map((order) => this.normalizeReservationControl(order));
+    const unresolved = controls.filter((control) => !TERMINAL_RESERVATION_STATUSES.includes(control.status));
+
+    const dueToday = unresolved.filter((control) => this.toDateKey(control.deadlineAt) === todayKey).length;
+    const overdue = unresolved.filter((control) => {
+      const deadlineKey = this.toDateKey(control.deadlineAt);
+      return deadlineKey && deadlineKey < todayKey;
+    }).length;
+    const reconfirmationPending = controls.filter((control) => {
+      if (!control.requiresReconfirmation) return false;
+      if (control.status === 'RECONFIRMED' || control.reconfirmedAt) return false;
+      const reconfirmKey = this.toDateKey(control.reconfirmBy);
+      return !reconfirmKey || reconfirmKey <= todayKey;
+    }).length;
+    const criticalReservations = unresolved.filter((control) => ['HIGH', 'CRITICAL'].includes(control.criticality)).length;
+
+    return {
+      reservation_unconfirmed: unresolved.length,
+      reservation_due_today: dueToday,
+      reservation_overdue: overdue,
+      reservation_reconfirmation_pending: reconfirmationPending,
+      critical_reservations: criticalReservations,
     };
   }
 
@@ -225,9 +323,14 @@ class BookingFileSummaryService {
     const recentActivityDays = lastActivityAt ? this.daysBetween(lastActivityAt, now) : null;
 
     if (
+      counters.reservation_overdue >= 1
+      || (counters.reservation_reconfirmation_pending > 0 && daysToTravel !== null && daysToTravel <= 2)
+      || (counters.critical_reservations > 0 && daysToTravel !== null && daysToTravel <= 3)
+      || (
       counters.overdue_orders >= 2
       || (counters.blocked_orders > 0 && daysToTravel !== null && daysToTravel <= 3)
       || (daysToTravel !== null && daysToTravel <= 2 && counters.open_orders > 0)
+      )
     ) {
       return {
         risk_level: 'CRITICAL',
@@ -236,9 +339,14 @@ class BookingFileSummaryService {
     }
 
     if (
+      counters.critical_reservations > 0
+      || counters.reservation_due_today > 0
+      || (daysToTravel !== null && daysToTravel <= 7 && counters.reservation_unconfirmed > 0)
+      || (
       counters.blocked_orders > 0
       || counters.overdue_orders === 1
       || (daysToTravel !== null && daysToTravel <= 7 && counters.open_orders > 0)
+      )
     ) {
       return {
         risk_level: 'HIGH',
@@ -247,8 +355,11 @@ class BookingFileSummaryService {
     }
 
     if (
+      counters.reservation_reconfirmation_pending > 0
+      || (
       counters.due_today_orders > 0
       || (counters.open_orders > 0 && recentActivityDays !== null && recentActivityDays > 7)
+      )
     ) {
       return {
         risk_level: 'MEDIUM',
@@ -265,6 +376,32 @@ class BookingFileSummaryService {
   }
 
   deriveNextAction(orders = []) {
+    const reservationCandidates = orders
+      .filter((order) => this.isReservationManagedOrder(order))
+      .map((order) => ({ order, control: this.normalizeReservationControl(order) }))
+      .filter(({ control }) =>
+        !TERMINAL_RESERVATION_STATUSES.includes(control.status)
+        || (control.requiresReconfirmation && !control.reconfirmedAt && control.status !== 'RECONFIRMED')
+      )
+      .sort((left, right) => {
+        const dateA = this.normalizeDate(left.control.reconfirmBy || left.control.deadlineAt)?.getTime() || Number.MAX_SAFE_INTEGER;
+        const dateB = this.normalizeDate(right.control.reconfirmBy || right.control.deadlineAt)?.getTime() || Number.MAX_SAFE_INTEGER;
+        return dateA - dateB;
+      });
+
+    const nextReservation = reservationCandidates[0];
+    if (nextReservation) {
+      const { order, control } = nextReservation;
+      const subject = control.supplierName || order.sourceSnapshot?.name || order.sourceSnapshot?.route || order.type;
+      const needsReconfirmation = control.requiresReconfirmation && !control.reconfirmedAt && control.status !== 'RECONFIRMED';
+      return {
+        next_action: needsReconfirmation
+          ? `Reconfirm reservation: ${subject}`
+          : `Reservation ${String(control.status || 'DRAFT').toLowerCase()}: ${subject}`,
+        next_action_due_at: this.normalizeDate(control.reconfirmBy || control.deadlineAt),
+      };
+    }
+
     const openOrders = orders
       .filter((order) => OPEN_ORDER_STATUSES.includes(order.status))
       .sort((a, b) => {
@@ -315,13 +452,23 @@ class BookingFileSummaryService {
     }
 
     const orders = await this.getOrdersForFile(file._id, file.service_order_ids);
-    const reservationsStatus = this.mapAreaStatus(orders.filter((order) => order.area === 'RESERVAS' || order.type === 'HOTEL'));
+    const reservationOrders = orders.filter((order) => this.isReservationManagedOrder(order));
+    const reservationsStatus = this.mapReservationsAreaStatus(reservationOrders);
     const operationsStatus = this.mapAreaStatus(orders.filter((order) => order.area === 'OPERACIONES' || ['TOUR', 'TRANSPORT', 'TICKETS'].includes(order.type)));
     const paymentsStatus = this.mapPaymentsStatus(orders);
     const deliverablesStatus = this.mapDeliverablesStatus(orders);
-    const passengerInfoStatus = this.buildPassengerInfoStatus(file.passenger_info_status, file);
+    const passengerOperationsHub = await bookingFilePassengerOperationsService.buildPassengerOperationsHub(file);
+    const passengerInfoBase = bookingFilePassengerOperationsService.buildPassengerInfoStatus({
+      file,
+      existingStatus: file.passenger_info_status,
+      hub: passengerOperationsHub,
+    });
+    const passengerInfoStatus = this.buildPassengerInfoStatus(passengerInfoBase, file);
     const lastActivityAt = this.extractLastActivityAt(file, orders);
-    const counters = this.buildOperationalCounters(orders);
+    const counters = {
+      ...this.buildOperationalCounters(orders),
+      ...this.buildReservationMetrics(orders),
+    };
     const riskSummary = this.deriveRiskLevel({ file, lastActivityAt, counters });
     const nextAction = this.deriveNextAction(orders);
     const overallSummary = this.deriveOverallStatus({

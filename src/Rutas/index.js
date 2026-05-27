@@ -8,6 +8,8 @@ const publicBookingRoute = require('./PublicBooking/publicBooking.route')
 const serviceOrdersRoute = require('./ServiceOrders/serviceOrders.route')
 const serviceOrderTemplatesRoute = require('./ServiceOrders/serviceOrderTemplates.route')
 const bookingFilesRoute = require('./BookingFiles/bookingFiles.route')
+const notificationsRoute = require('./Notifications/notifications.route')
+const reportsRoute = require('./Reports/reports.route')
 const tariffV2Route = require('../modules/tariff-v2/api/tariff-v2.routes')
 const masterQuoterV2Route = require('../modules/master-quoter-v2/api/master-quoter-v2.routes')
 const quoterV2Route = require('../modules/quoter-v2/api/quoter-v2.routes')
@@ -32,6 +34,8 @@ function routes(app){
     route.use('/service-orders', serviceOrdersRoute)
     route.use('/service-order-templates', serviceOrderTemplatesRoute)
     route.use('/booking-files', bookingFilesRoute)
+    route.use('/notifications', notificationsRoute)
+    route.use('/reports', reportsRoute)
 }
 
 module.exports = routes;

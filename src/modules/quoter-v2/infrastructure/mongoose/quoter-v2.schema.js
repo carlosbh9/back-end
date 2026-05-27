@@ -71,6 +71,18 @@ const CruiseSchema = new Schema({
   notes: { type: String, trim: true, default: '' },
 }, { _id: false });
 
+const HistoryEntrySchema = new Schema({
+  changedAt: { type: Date, default: Date.now },
+  changedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  action: { type: String, enum: ['UPDATED', 'STATUS_CHANGED', 'SOLD', 'REVERTED'], default: 'UPDATED' },
+  prevStatus: { type: String, default: null },
+  newStatus: { type: String, default: null },
+  prevPricePP: { type: Number, default: null },
+  newPricePP: { type: Number, default: null },
+  prevFinalCost: { type: Number, default: null },
+  newFinalCost: { type: Number, default: null },
+}, { _id: false });
+
 const TotalPricesSchema = new Schema({
   total_cost: { type: Number, default: 0 },
   external_utility: { type: Number, default: 0 },
@@ -118,6 +130,7 @@ const QuoterV2Schema = new Schema({
   operators: { type: [OperatorSchema], default: [] },
   cruises: { type: [CruiseSchema], default: [] },
   total_prices: { type: TotalPricesSchema, default: () => ({}) },
+  history: { type: [HistoryEntrySchema], default: [] },
 }, {
   collection: 'quoters',
   timestamps: true,

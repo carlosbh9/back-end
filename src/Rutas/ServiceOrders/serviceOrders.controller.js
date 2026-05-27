@@ -2,6 +2,7 @@ const serviceOrderService = require('../../Services/service-orders/service-order
 const serviceOrderOrchestrator = require('../../Services/service-orders/service-order.orchestrator');
 const Contact = require('../../models/contact.schema');
 const BookingFile = require('../../models/booking_file.schema');
+const notificationService = require('../../Services/notifications/notification.service');
 const {
   createServiceOrderAttachmentPresign,
   createServiceOrderAttachmentReadPresign,
@@ -13,6 +14,9 @@ const ORDER_STATUSES = ['PENDING', 'IN_PROGRESS', 'WAITING_INFO', 'DONE', 'CANCE
 const ATTACHMENT_TYPES = ['VOUCHER', 'INVOICE', 'PAYMENT_PROOF', 'RESERVATION_CONFIRMATION', 'TICKET', 'PASSPORT_COPY', 'OTHER'];
 const PAYMENT_STATUSES = ['NOT_REQUIRED', 'PENDING', 'PARTIAL', 'PAID', 'REFUNDED'];
 const PAYMENT_METHODS = ['TRANSFER', 'CASH', 'CARD', 'CHECK', 'OTHER'];
+const RESERVATION_STATUSES = ['DRAFT', 'REQUESTED', 'OPTIONED', 'CONFIRMED', 'RECONFIRMED', 'CANCELLED', 'FAILED'];
+const RESERVATION_CRITICALITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const CONFIRMATION_EVIDENCE_TYPES = ['EMAIL', 'PDF', 'PORTAL', 'WHATSAPP', 'PHONE', 'OTHER'];
 
 function validateStatusPayload(body) {
   const validator = createValidator({
@@ -113,6 +117,47 @@ function validateFinancialsPayload(body) {
   validator.optionalDate('paymentDate', body.paymentDate, { allowNull: true, allowEmpty: true });
   validator.optionalString('invoiceNumber', body.invoiceNumber);
   validator.optionalDate('invoiceDate', body.invoiceDate, { allowNull: true, allowEmpty: true });
+  validator.assert();
+}
+
+function validateReservationControlPayload(body) {
+  const validator = createValidator({
+    message: 'Invalid reservation control payload',
+    errorCode: 'SERVICE_ORDER_RESERVATION_CONTROL_VALIDATION_FAILED',
+  });
+
+  validator.requirePlainObject('body', body);
+  if (!isPlainObject(body)) {
+    validator.assert();
+    return;
+  }
+
+  if (!Object.keys(body).length) {
+    validator.addIssue('body', 'body must not be empty');
+  }
+
+  validator.optionalEnum('status', body.status, RESERVATION_STATUSES);
+  validator.optionalEnum('criticality', body.criticality, RESERVATION_CRITICALITIES);
+  validator.optionalDate('deadlineAt', body.deadlineAt, { allowNull: true, allowEmpty: true });
+  validator.optionalDate('requestedAt', body.requestedAt, { allowNull: true, allowEmpty: true });
+  validator.optionalDate('optionExpiresAt', body.optionExpiresAt, { allowNull: true, allowEmpty: true });
+  validator.optionalDate('confirmedAt', body.confirmedAt, { allowNull: true, allowEmpty: true });
+  validator.optionalBoolean('requiresReconfirmation', body.requiresReconfirmation);
+  validator.optionalDate('reconfirmBy', body.reconfirmBy, { allowNull: true, allowEmpty: true });
+  validator.optionalDate('reconfirmedAt', body.reconfirmedAt, { allowNull: true, allowEmpty: true });
+  validator.optionalString('supplierName', body.supplierName);
+  validator.optionalString('supplierContact', body.supplierContact);
+  validator.optionalString('supplierReference', body.supplierReference);
+  validator.optionalString('providerResponseNotes', body.providerResponseNotes);
+  validator.optionalObject('confirmationEvidence', body.confirmationEvidence, { allowNull: true });
+
+  if (isPlainObject(body.confirmationEvidence)) {
+    validator.optionalEnum('confirmationEvidence.type', body.confirmationEvidence.type, CONFIRMATION_EVIDENCE_TYPES);
+    validator.optionalString('confirmationEvidence.reference', body.confirmationEvidence.reference);
+    validator.optionalString('confirmationEvidence.notes', body.confirmationEvidence.notes);
+    validator.optionalDate('confirmationEvidence.capturedAt', body.confirmationEvidence.capturedAt, { allowNull: true, allowEmpty: true });
+  }
+
   validator.assert();
 }
 
@@ -223,6 +268,20 @@ class ServiceOrdersController {
       });
       if (!item) {
         return sendError(res, createHttpError(404, 'Service order not found', 'SERVICE_ORDER_NOT_FOUND'));
+      }
+
+      if (item.file_id) {
+        BookingFile.findById(item.file_id).select('createdBy').lean().then((bf) => {
+          if (bf?.createdBy && String(bf.createdBy) !== String(req.user?.id)) {
+            const label = item.title || item.service_name || 'Orden de servicio';
+            notificationService.createForUser(bf.createdBy, {
+              type: 'ORDER_STATUS_CHANGED',
+              message: `"${label}" cambió a ${status}.`,
+              entityId: item._id,
+              entityType: 'service_order',
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       }
 
       return res.status(200).json(item);
@@ -360,6 +419,35 @@ class ServiceOrdersController {
         status: isForbidden ? 403 : 400,
         message: 'Error updating financials',
         errorCode: isForbidden ? 'SERVICE_ORDER_FORBIDDEN' : 'SERVICE_ORDER_FINANCIALS_UPDATE_FAILED',
+      });
+     }
+  }
+
+  async updateReservationControl(req, res) {
+    try {
+      if (!isValidObjectId(req.params.id)) {
+        return sendError(res, createHttpError(400, 'Service order id is invalid', 'SERVICE_ORDER_ID_INVALID'));
+      }
+
+      validateReservationControlPayload(req.body);
+
+      const item = await serviceOrderService.updateReservationControl({
+        id: req.params.id,
+        payload: req.body || {},
+        userId: req.user?.id || null,
+        userRole: req.user?.role || '',
+      });
+      if (!item) {
+        return sendError(res, createHttpError(404, 'Service order not found', 'SERVICE_ORDER_NOT_FOUND'));
+      }
+
+      return res.status(200).json(item);
+    } catch (error) {
+      const isForbidden = error.message?.includes('permissions');
+      return sendError(res, error, {
+        status: isForbidden ? 403 : 400,
+        message: 'Error updating reservation control',
+        errorCode: isForbidden ? 'SERVICE_ORDER_FORBIDDEN' : 'SERVICE_ORDER_RESERVATION_CONTROL_UPDATE_FAILED',
       });
     }
   }

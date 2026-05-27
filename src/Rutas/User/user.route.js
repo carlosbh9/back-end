@@ -11,6 +11,7 @@ const { createHttpError, sendError } = require('../../utils/httpError');
 const { createValidator, isPlainObject, isValidObjectId } = require('../../utils/requestValidation');
 
 const router = express.Router();
+const DEFAULT_JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 
 function validateSignupPayload(body) {
   const validator = createValidator({
@@ -91,7 +92,7 @@ router.post('/auth/signup', async (req, res) => {
 
     await temp.save();
 
-    const token = jwt.sign({ _id: temp._id }, process.env.JWT_SECRET);
+    const token = jwt.sign({ _id: temp._id }, process.env.JWT_SECRET, { expiresIn: DEFAULT_JWT_EXPIRES_IN });
     return res.status(200).json({
       usuario: temp,
       message: 'Usuario registrado',
@@ -131,7 +132,7 @@ router.post('/auth/login', async (req, res) => {
       username: user.name,
       email: user.username,
       permissions,
-    }, process.env.JWT_SECRET);
+    }, process.env.JWT_SECRET, { expiresIn: DEFAULT_JWT_EXPIRES_IN });
 
     return res.status(200).json({ token });
   } catch (error) {

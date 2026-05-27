@@ -253,3 +253,6 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/dotenv,windows,linux,macos,node,angular
 
 .gitignore
+
+downloaded-passports*/
+temp-*.js

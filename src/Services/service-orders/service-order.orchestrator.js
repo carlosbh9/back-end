@@ -1,6 +1,7 @@
 const ServiceOrder = require('../../models/service_order.schema');
 const ServiceOrderTemplate = require('../../models/service_order_template.schema');
 const QuoterV2Schema = require('../../modules/quoter-v2/infrastructure/mongoose/quoter-v2.schema');
+const serviceOrderAutomationService = require('./service-order-automation.service');
 
 class ServiceOrderOrchestrator {
   normalizeText(value = '') {
@@ -326,6 +327,7 @@ class ServiceOrderOrchestrator {
           payload: { kind: 'CREATION', businessEventId, idempotencyKey, type, lineKey }
         })]
       };
+      payload.financials = serviceOrderAutomationService.buildAutoFinancials(payload);
 
       // Idempotent creation by unique idempotencyKey.
       const order = await ServiceOrder.findOneAndUpdate(

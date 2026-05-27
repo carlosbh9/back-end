@@ -29,6 +29,11 @@ const bookingFileSummaryContextSchema = new Schema({
   blocked_orders: { type: Number, default: 0, min: 0 },
   overdue_orders: { type: Number, default: 0, min: 0 },
   due_today_orders: { type: Number, default: 0, min: 0 },
+  reservation_unconfirmed: { type: Number, default: 0, min: 0 },
+  reservation_due_today: { type: Number, default: 0, min: 0 },
+  reservation_overdue: { type: Number, default: 0, min: 0 },
+  reservation_reconfirmation_pending: { type: Number, default: 0, min: 0 },
+  critical_reservations: { type: Number, default: 0, min: 0 },
   passenger_info_ready: { type: Boolean, default: false },
   all_required_areas_completed: { type: Boolean, default: false },
   overall_reason: { type: String, default: '', trim: true },
@@ -108,6 +113,182 @@ const operationalItinerarySchema = new Schema({
   days: { type: [operationalItineraryDaySchema], default: [] }
 }, { _id: false });
 
+const bookingFormMetaSchema = new Schema({
+  source: { type: String, default: '' },
+  clientId: { type: String, default: '', trim: true },
+  publicLinkToken: { type: String, default: '', trim: true },
+  submittedAt: { type: Date, default: null },
+  lastUpdatedAt: { type: Date, default: null },
+  status: { type: String, default: 'PENDING', trim: true }
+}, { _id: false });
+
+const bookingFormPassengerGuestSchema = new Schema({
+  firstname: { type: String, default: '', trim: true },
+  lastname: { type: String, default: '', trim: true },
+  birthdate: { type: Date, default: null },
+  expirydate: { type: Date, default: null },
+  gender: { type: String, default: '', trim: true },
+  nationality: { type: String, default: '', trim: true },
+  passport: { type: String, default: '', trim: true },
+  passportfile: { type: String, default: '', trim: true },
+  passportkey: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormEmergencyContactSchema = new Schema({
+  name: { type: String, default: '', trim: true },
+  relationship: { type: String, default: '', trim: true },
+  homePhone: { type: String, default: '', trim: true },
+  cellPhone: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormPassengerHealthSchema = new Schema({
+  allergies: { type: String, default: '', trim: true },
+  dietaryreq: { type: String, default: '', trim: true },
+  medicalcondition: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormPassengerInsuranceSchema = new Schema({
+  companyName: { type: String, default: '', trim: true },
+  policyNumber: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormPassengerPhysicalSchema = new Schema({
+  height: { type: String, default: '', trim: true },
+  weight: { type: String, default: '', trim: true },
+  shoeSize: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormPassengerComplementarySchema = new Schema({
+  streetAddress: { type: String, default: '', trim: true },
+  city: { type: String, default: '', trim: true },
+  state: { type: String, default: '', trim: true },
+  zipCode: { type: String, default: '', trim: true },
+  country: { type: String, default: '', trim: true },
+  email: { type: String, default: '', trim: true },
+  homePhone: { type: String, default: '', trim: true },
+  cellPhone: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormPassengerSchema = new Schema({
+  guest: {
+    type: bookingFormPassengerGuestSchema,
+    default: () => ({})
+  },
+  econtact: {
+    type: bookingFormEmergencyContactSchema,
+    default: () => ({})
+  },
+  health: {
+    type: bookingFormPassengerHealthSchema,
+    default: () => ({})
+  },
+  insurance: {
+    type: bookingFormPassengerInsuranceSchema,
+    default: () => ({})
+  },
+  physicalinfo: {
+    type: bookingFormPassengerPhysicalSchema,
+    default: () => ({})
+  },
+  complementaryInfo: {
+    type: bookingFormPassengerComplementarySchema,
+    default: () => ({})
+  },
+  notes: { type: String, default: '' }
+}, { _id: false });
+
+const bookingFormContactPersonSchema = new Schema({
+  guest: { type: String, default: '', trim: true },
+  occupation: { type: String, default: '', trim: true },
+  phone: { type: String, default: '', trim: true },
+  email: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormYourContactSchema = new Schema({
+  street: { type: String, default: '', trim: true },
+  city: { type: String, default: '', trim: true },
+  state: { type: String, default: '', trim: true },
+  zip: { type: String, default: '', trim: true },
+  email: { type: String, default: '', trim: true },
+  homePhone: { type: String, default: '', trim: true },
+  cellPhone: { type: String, default: '', trim: true },
+  contacts: {
+    type: [bookingFormContactPersonSchema],
+    default: []
+  }
+}, { _id: false });
+
+const bookingFormFlightSchema = new Schema({
+  type: { type: String, default: '', trim: true },
+  flightnumber: { type: String, default: '', trim: true },
+  departuredate: { type: Date, default: null },
+  departuretime: { type: String, default: '', trim: true },
+  arrivaldate: { type: Date, default: null },
+  arrivaltime: { type: String, default: '', trim: true },
+  departureairport: { type: String, default: '', trim: true },
+  arrivalairport: { type: String, default: '', trim: true },
+  recordlocator: { type: String, default: '', trim: true },
+  route: { type: String, default: '', trim: true },
+  extrainfo: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormRoomSchema = new Schema({
+  guestNames: { type: String, default: '', trim: true },
+  roomType: { type: String, default: '', trim: true },
+  notes: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormRestaurantSchema = new Schema({
+  name: { type: String, default: '', trim: true },
+  destination: { type: String, default: '', trim: true },
+  date: { type: Date, default: null },
+  time: { type: String, default: '', trim: true }
+}, { _id: false });
+
+const bookingFormSchema = new Schema({
+  meta: {
+    type: bookingFormMetaSchema,
+    default: () => ({})
+  },
+  infopax: {
+    type: [bookingFormPassengerSchema],
+    default: []
+  },
+  emergencyContact: {
+    type: bookingFormEmergencyContactSchema,
+    default: () => ({})
+  },
+  yourContact: {
+    type: bookingFormYourContactSchema,
+    default: () => ({})
+  },
+  travelInsurance: {
+    type: bookingFormPassengerInsuranceSchema,
+    default: () => ({})
+  },
+  resvflights: {
+    type: [bookingFormFlightSchema],
+    default: []
+  },
+  resvroom: {
+    type: [bookingFormRoomSchema],
+    default: []
+  },
+  resvrestaurants: {
+    type: [bookingFormRestaurantSchema],
+    default: []
+  },
+  resvhotels: {
+    type: [Schema.Types.Mixed],
+    default: []
+  },
+  resvservices: {
+    type: [Schema.Types.Mixed],
+    default: []
+  },
+  additionalInfo: { type: String, default: '' }
+}, { _id: false });
+
 const bookingFileSchema = new Schema({
   quoter_id: {
     type: Schema.Types.ObjectId,
@@ -140,6 +321,10 @@ const bookingFileSchema = new Schema({
   },
   sales_snapshot: { type: Schema.Types.Mixed, required: true },
   itinerary_snapshot: { type: Schema.Types.Mixed, required: true },
+  booking_form: {
+    type: bookingFormSchema,
+    default: () => ({})
+  },
   operational_itinerary: {
     type: operationalItinerarySchema,
     default: () => ({})
